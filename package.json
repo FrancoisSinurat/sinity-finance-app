@@ -3,10 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "node scripts/dev.js",
+    "dev:no-turbopack": "node scripts/dev.js --no-turbopack",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "node scripts/start.js",
+    "lint": "next lint",
+    "port": "node scripts/port-check.js",
+    "kill-port": "node scripts/kill-port.js"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
@@ -25,6 +28,7 @@
     "pg": "^8.16.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "react-markdown": "^10.1.0",
     "recharts": "^3.1.2",
     "sequelize": "^6.37.7",
     "tailwind-merge": "^3.3.1"
@@ -35,6 +39,8 @@
     "@types/node": "^20.19.15",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^10.1.0",
+    "dotenv-cli": "^11.0.0",
     "sequelize-cli": "^6.6.3",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",

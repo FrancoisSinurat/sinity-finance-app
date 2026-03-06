@@ -45,94 +45,146 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --background: oklch(0.98 0.02 330); /* Pink muda */
+  --foreground: oklch(0.25 0.08 330); /* Pink gelap untuk text */
+  --card: oklch(0.99 0.015 330); /* Pink sangat muda */
+  --card-foreground: oklch(0.25 0.08 330);
+  --popover: oklch(0.99 0.015 330);
+  --popover-foreground: oklch(0.25 0.08 330);
+  --primary: oklch(0.55 0.15 330); /* Pink medium */
+  --primary-foreground: oklch(0.99 0.01 330);
+  --secondary: oklch(0.95 0.03 330); /* Pink muda */
+  --secondary-foreground: oklch(0.35 0.1 330);
+  --muted: oklch(0.96 0.025 330); /* Pink sangat muda */
+  --muted-foreground: oklch(0.45 0.1 330);
+  --accent: oklch(0.95 0.03 330);
+  --accent-foreground: oklch(0.35 0.1 330);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --border: oklch(0.90 0.04 330); /* Pink border */
+  --input: oklch(0.92 0.035 330);
+  --ring: oklch(0.60 0.12 330); /* Pink ring */
+  --chart-1: oklch(0.65 0.15 330); /* Pink */
+  --chart-2: oklch(0.70 0.18 330); /* Pink lebih terang */
+  --chart-3: oklch(0.60 0.12 330); /* Pink medium */
+  --chart-4: oklch(0.75 0.20 330); /* Pink terang */
+  --chart-5: oklch(0.55 0.10 330); /* Pink gelap */
+  --sidebar: oklch(0.97 0.025 330); /* Pink muda */
+  --sidebar-foreground: oklch(0.25 0.08 330);
+  --sidebar-primary: oklch(0.55 0.15 330);
+  --sidebar-primary-foreground: oklch(0.99 0.01 330);
+  --sidebar-accent: oklch(0.95 0.03 330);
+  --sidebar-accent-foreground: oklch(0.35 0.1 330);
+  --sidebar-border: oklch(0.90 0.04 330);
+  --sidebar-ring: oklch(0.60 0.12 330);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: oklch(0.10 0 0); /* Dark background yang lebih nyaman */
+  --foreground: oklch(0.95 0.01 330);
+  --card: oklch(0.13 0 0); /* Card background sedikit lebih terang */
+  --card-foreground: oklch(0.95 0.01 330);
+  --popover: oklch(0.13 0 0);
+  --popover-foreground: oklch(0.95 0.01 330);
+  --primary: oklch(0.80 0.15 330); /* Primary yang lebih kontras */
+  --primary-foreground: oklch(0.10 0 0);
+  --secondary: oklch(0.16 0 0); /* Secondary lebih terang sedikit */
+  --secondary-foreground: oklch(0.92 0.01 330);
+  --muted: oklch(0.16 0 0);
+  --muted-foreground: oklch(0.70 0.01 330); /* Muted text lebih terang untuk readability */
+  --accent: oklch(0.16 0 0);
+  --accent-foreground: oklch(0.92 0.01 330);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --border: oklch(0.22 0 0); /* Border lebih terang untuk visibility */
+  --input: oklch(0.15 0 0); /* Input background */
+  --ring: oklch(0.50 0.10 330); /* Ring lebih terang dan berwarna */
+  --chart-1: oklch(0.70 0.15 330); /* Chart colors */
+  --chart-2: oklch(0.75 0.18 330);
+  --chart-3: oklch(0.65 0.12 330);
+  --chart-4: oklch(0.80 0.20 330);
+  --chart-5: oklch(0.60 0.10 330);
+  --sidebar: oklch(0.11 0 0); /* Sidebar background */
+  --sidebar-foreground: oklch(0.92 0.01 330);
+  --sidebar-primary: oklch(0.70 0.15 330);
+  --sidebar-primary-foreground: oklch(0.10 0 0);
+  --sidebar-accent: oklch(0.16 0 0);
+  --sidebar-accent-foreground: oklch(0.92 0.01 330);
+  --sidebar-border: oklch(0.22 0 0);
+  --sidebar-ring: oklch(0.50 0.10 330);
+}
+
+/* Color Theme Variables */
+:root {
+  /* Default Pink Theme */
+  --theme-50: #fdf2f8;
+  --theme-100: #fce7f3;
+  --theme-200: #fbcfe8;
+  --theme-300: #f9a8d4;
+  --theme-400: #f472b6;
+  --theme-500: #ec4899;
+  --theme-600: #db2777;
+}
+
+.theme-pink {
+  --theme-50: #fdf2f8;
+  --theme-100: #fce7f3;
+  --theme-200: #fbcfe8;
+  --theme-300: #f9a8d4;
+  --theme-400: #f472b6;
+  --theme-500: #ec4899;
+  --theme-600: #db2777;
+}
+
+.theme-sky {
+  --theme-50: #f0f9ff;
+  --theme-100: #e0f2fe;
+  --theme-200: #bae6fd;
+  --theme-300: #7dd3fc;
+  --theme-400: #38bdf8;
+  --theme-500: #0ea5e9;
+  --theme-600: #0284c7;
+}
+
+.theme-indigo {
+  --theme-50: #eef2ff;
+  --theme-100: #e0e7ff;
+  --theme-200: #c7d2fe;
+  --theme-300: #a5b4fc;
+  --theme-400: #818cf8;
+  --theme-500: #6366f1;
+  --theme-600: #4f46e5;
+}
+
+.theme-green {
+  --theme-50: #f0fdf4;
+  --theme-100: #dcfce7;
+  --theme-200: #bbf7d0;
+  --theme-300: #86efac;
+  --theme-400: #4ade80;
+  --theme-500: #22c55e;
+  --theme-600: #16a34a;
 }
 
 @layer base {
   :root {
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --sidebar: oklch(0.97 0.025 330); /* Pink muda */
+    --sidebar-foreground: oklch(0.25 0.08 330);
+    --sidebar-primary: oklch(0.55 0.15 330);
+    --sidebar-primary-foreground: oklch(0.99 0.01 330);
+    --sidebar-accent: oklch(0.95 0.03 330);
+    --sidebar-accent-foreground: oklch(0.35 0.1 330);
+    --sidebar-border: oklch(0.90 0.04 330);
+    --sidebar-ring: oklch(0.60 0.12 330);
   }
 
   .dark {
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.439 0 0);
+    --sidebar: oklch(0.11 0 0); /* Sidebar background */
+    --sidebar-foreground: oklch(0.92 0.01 330);
+    --sidebar-primary: oklch(0.70 0.15 330);
+    --sidebar-primary-foreground: oklch(0.10 0 0);
+    --sidebar-accent: oklch(0.16 0 0);
+    --sidebar-accent-foreground: oklch(0.92 0.01 330);
+    --sidebar-border: oklch(0.22 0 0);
+    --sidebar-ring: oklch(0.50 0.10 330);
   }
 }
   button {
@@ -145,4 +197,53 @@
 }
 .animate-fadeIn {
   animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Smooth Modal Animations - Slow & Elegant */
+@keyframes modalFadeIn {
+  from { 
+    opacity: 0; 
+  }
+  to { 
+    opacity: 1; 
+  }
+}
+
+@keyframes modalSlideIn {
+  from { 
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.92);
+  }
+  to { 
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes modalSlideOut {
+  from { 
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to { 
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.92);
+  }
+}
+
+/* Apply animations with slow, smooth easing */
+[data-state="open"] .animate-modal-overlay {
+  animation: modalFadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+[data-state="closed"] .animate-modal-overlay {
+  animation: modalFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) reverse forwards;
+}
+
+[data-state="open"] .animate-modal-content {
+  animation: modalSlideIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+[data-state="closed"] .animate-modal-content {
+  animation: modalSlideOut 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

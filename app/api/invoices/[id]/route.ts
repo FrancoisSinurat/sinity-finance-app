@@ -8,16 +8,18 @@ if (!store.length) {
   (globalThis as any).__MEMO__INVOICES__ = store;
 }
 
-export async function PATCH(_req: Request, { params }: { params: { id: string } }) {
-  const idx = store.findIndex((i) => i.id === params.id);
+export async function PATCH(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const idx = store.findIndex((i) => i.id === id);
   if (idx === -1) return NextResponse.json({ message: "Not found" }, { status: 404 });
   const body = await _req.json();
   store[idx] = { ...store[idx], ...body };
   return NextResponse.json(store[idx]);
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
-  const idx = store.findIndex((i) => i.id === params.id);
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const idx = store.findIndex((i) => i.id === id);
   if (idx === -1) return NextResponse.json({ message: "Not found" }, { status: 404 });
   const removed = store.splice(idx, 1)[0];
   return NextResponse.json(removed);
