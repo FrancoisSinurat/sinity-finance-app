@@ -12,7 +12,7 @@ const colorThemes = [
   { name: "green", label: "Green", color: "#22c55e" },
 ] as const;
 
-export function ThemeSelector() {
+export function ThemeSelector({ onChange }: { onChange?: (theme: "pink" | "sky" | "indigo" | "green") => void }) {
   const { colorTheme, setColorTheme } = useTheme();
   const [isOpen, setIsOpen] = React.useState(false);
 
@@ -41,7 +41,9 @@ export function ThemeSelector() {
                 <button
                   key={theme.name}
                   onClick={() => {
-                    setColorTheme(theme.name as any);
+                    const selected = theme.name as "pink" | "sky" | "indigo" | "green";
+                    setColorTheme(selected);
+                    onChange?.(selected);
                     setIsOpen(false);
                   }}
                   className={cn(

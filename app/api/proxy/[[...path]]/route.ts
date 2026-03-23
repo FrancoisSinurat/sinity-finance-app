@@ -14,6 +14,18 @@ function getBackendUrl(pathSegments: string[] | undefined, request: NextRequest)
   return `${base}${path}${qs ? `?${qs}` : ""}`;
 }
 
+function buildForwardHeaders(request: NextRequest, includeBodyContentType = false): HeadersInit {
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+  };
+  const authHeader = request.headers.get("authorization");
+  if (authHeader) headers.Authorization = authHeader;
+  if (includeBodyContentType) {
+    headers["Content-Type"] = request.headers.get("Content-Type") ?? "application/json";
+  }
+  return headers;
+}
+
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ path?: string[] }> }
@@ -23,10 +35,7 @@ export async function GET(
   try {
     const res = await fetch(url, {
       method: "GET",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
+      headers: buildForwardHeaders(request, true),
       cache: "no-store",
     });
     const text = await res.text();
@@ -57,10 +66,7 @@ export async function POST(
     const body = await request.text();
     const res = await fetch(url, {
       method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": request.headers.get("Content-Type") ?? "application/json",
-      },
+      headers: buildForwardHeaders(request, true),
       body: body || undefined,
       cache: "no-store",
     });
@@ -92,10 +98,7 @@ export async function PUT(
     const body = await request.text();
     const res = await fetch(url, {
       method: "PUT",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": request.headers.get("Content-Type") ?? "application/json",
-      },
+      headers: buildForwardHeaders(request, true),
       body: body || undefined,
       cache: "no-store",
     });
@@ -126,7 +129,7 @@ export async function DELETE(
   try {
     const res = await fetch(url, {
       method: "DELETE",
-      headers: { Accept: "application/json" },
+      headers: buildForwardHeaders(request),
       cache: "no-store",
     });
     const text = await res.text();

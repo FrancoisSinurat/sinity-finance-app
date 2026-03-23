@@ -1,365 +1,645 @@
 "use client";
 
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { Bell, PiggyBank, Target, TrendingDown, TrendingUp, Wallet, X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ApiError, goalsService, settingsService, useInvoicesData } from "@/lib/api";
+import { computeTargetProgress, type SavingsTarget, type WishlistItem } from "@/lib/goals-storage";
+import { getCategoryBudgets } from "@/lib/budget-storage";
+import { dismissBudgetAlert, syncBudgetAlerts, type BudgetAlert } from "@/lib/budget-notifications";
+import { computeAccountBalances, getAccounts, getInvoiceAccountMap } from "@/lib/accounts-storage";
+import { filterByMonth, groupByCategory, totalsByType } from "@/lib/finance-analytics";
+import { formatJakartaMonthLabel, getJakartaMonthKey } from "@/lib/date-time";
 import { useTheme } from "@/lib/theme-provider";
 import { getChartColors } from "@/lib/theme-utils";
 import { cn } from "@/lib/utils";
-import { TrendingUp, TrendingDown, PiggyBank, Shield, Heart } from "lucide-react";
 
-const pemasukanData = [
-  { name: "Gaji", value: 4000 },
-  { name: "Freelance", value: 2000 },
-  { name: "Investasi", value: 1500 },
-];
+type InsightMode = "pemasukkan" | "pengeluaran";
 
-const pengeluaranData = [
-  { name: "Makan", value: 2000 },
-  { name: "Transport", value: 1000 },
-  { name: "Hiburan", value: 1500 },
-];
+function currentMonthKey(): string {
+  return getJakartaMonthKey();
+}
 
-const tabunganData = [
-  { name: "Tabungan A", value: 3000 },
-  { name: "Tabungan B", value: 1500 },
-];
+function formatCurrency(value: number): string {
+  return `Rp ${value.toLocaleString("id-ID")}`;
+}
 
-const daruratData = [
-  { name: "Dana Darurat A", value: 1000 },
-  { name: "Dana Darurat B", value: 500 },
-];
-
-const wishlistData = [
-  { name: "Laptop", value: 2500 },
-  { name: "Liburan", value: 2000 },
-];
+function buildThemeStyles(colorTheme: "pink" | "sky" | "indigo" | "green") {
+  if (colorTheme === "sky") {
+    return {
+      shell: "border-sky-200/70 dark:border-sky-900/55",
+      soft: "bg-sky-50/70 dark:bg-sky-950/20",
+      icon: "bg-sky-500/12 text-sky-600 dark:bg-sky-400/15 dark:text-sky-200",
+      accent: "text-sky-700 dark:text-sky-200",
+      accentBg: "bg-sky-500 hover:bg-sky-600 text-white",
+      accentSoft: "bg-sky-100/80 text-sky-700 dark:bg-sky-900/35 dark:text-sky-200",
+      outline: "border-sky-200/80 text-sky-700 hover:bg-sky-50 dark:border-sky-900/60 dark:text-sky-200 dark:hover:bg-sky-950/25",
+      progress: "bg-sky-500",
+      gradient: "from-sky-500 via-sky-500 to-sky-600",
+    };
+  }
+  if (colorTheme === "indigo") {
+    return {
+      shell: "border-indigo-200/70 dark:border-indigo-900/55",
+      soft: "bg-indigo-50/70 dark:bg-indigo-950/20",
+      icon: "bg-indigo-500/12 text-indigo-600 dark:bg-indigo-400/15 dark:text-indigo-200",
+      accent: "text-indigo-700 dark:text-indigo-200",
+      accentBg: "bg-indigo-500 hover:bg-indigo-600 text-white",
+      accentSoft: "bg-indigo-100/80 text-indigo-700 dark:bg-indigo-900/35 dark:text-indigo-200",
+      outline: "border-indigo-200/80 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-900/60 dark:text-indigo-200 dark:hover:bg-indigo-950/25",
+      progress: "bg-indigo-500",
+      gradient: "from-indigo-500 via-indigo-500 to-indigo-600",
+    };
+  }
+  if (colorTheme === "green") {
+    return {
+      shell: "border-green-200/70 dark:border-green-900/55",
+      soft: "bg-green-50/70 dark:bg-green-950/20",
+      icon: "bg-green-500/12 text-green-600 dark:bg-green-400/15 dark:text-green-200",
+      accent: "text-green-700 dark:text-green-200",
+      accentBg: "bg-green-500 hover:bg-green-600 text-white",
+      accentSoft: "bg-green-100/80 text-green-700 dark:bg-green-900/35 dark:text-green-200",
+      outline: "border-green-200/80 text-green-700 hover:bg-green-50 dark:border-green-900/60 dark:text-green-200 dark:hover:bg-green-950/25",
+      progress: "bg-green-500",
+      gradient: "from-green-500 via-green-500 to-green-600",
+    };
+  }
+  return {
+    shell: "border-pink-200/70 dark:border-pink-900/55",
+    soft: "bg-pink-50/70 dark:bg-pink-950/20",
+    icon: "bg-pink-500/12 text-pink-600 dark:bg-pink-400/15 dark:text-pink-200",
+    accent: "text-pink-700 dark:text-pink-200",
+    accentBg: "bg-pink-500 hover:bg-pink-600 text-white",
+    accentSoft: "bg-pink-100/80 text-pink-700 dark:bg-pink-900/35 dark:text-pink-200",
+    outline: "border-pink-200/80 text-pink-700 hover:bg-pink-50 dark:border-pink-900/60 dark:text-pink-200 dark:hover:bg-pink-950/25",
+    progress: "bg-pink-500",
+    gradient: "from-pink-500 via-pink-500 to-pink-600",
+  };
+}
 
 export default function DashboardContent() {
-  const { colorTheme } = useTheme();
-  
-  // Calculate totals
-  const totalPemasukan = pemasukanData.reduce((sum, item) => sum + item.value, 0);
-  const totalPengeluaran = pengeluaranData.reduce((sum, item) => sum + item.value, 0);
-  const totalTabungan = tabunganData.reduce((sum, item) => sum + item.value, 0);
-  const totalDarurat = daruratData.reduce((sum, item) => sum + item.value, 0);
-  const totalWishlist = wishlistData.reduce((sum, item) => sum + item.value, 0);
-  
-  return (
-    <div className="space-y-4 sm:space-y-6 md:space-y-8">
-      {/* Header */}
-      <div className="text-center space-y-2">
-        <h1 className={cn(
-          "text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold bg-clip-text text-transparent",
-          colorTheme === "pink" && "bg-gradient-to-r from-pink-500 to-pink-500 dark:from-pink-400 dark:to-pink-400",
-          colorTheme === "sky" && "bg-gradient-to-r from-sky-500 to-sky-500 dark:from-sky-400 dark:to-sky-400",
-          colorTheme === "indigo" && "bg-gradient-to-r from-indigo-500 to-indigo-500 dark:from-indigo-400 dark:to-indigo-400",
-          colorTheme === "green" && "bg-gradient-to-r from-green-500 to-green-500 dark:from-green-400 dark:to-green-400",
-        )}>
-          Bulan Ini
-        </h1>
-        <p className={cn(
-          "text-lg sm:text-xl md:text-2xl lg:text-3xl font-semibold",
-          colorTheme === "pink" && "text-pink-500 dark:text-pink-400",
-          colorTheme === "sky" && "text-sky-500 dark:text-sky-400",
-          colorTheme === "indigo" && "text-indigo-500 dark:text-indigo-400",
-          colorTheme === "green" && "text-green-500 dark:text-green-400",
-        )}>
-          Total: Rp {totalPemasukan.toLocaleString("id-ID")}
-        </p>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-        <SummaryCard
-          title="Pemasukan"
-          value={totalPemasukan}
-          icon={TrendingUp}
-          colorTheme={colorTheme}
-        />
-        <SummaryCard
-          title="Pengeluaran"
-          value={totalPengeluaran}
-          icon={TrendingDown}
-          colorTheme={colorTheme}
-        />
-        <SummaryCard
-          title="Tabungan"
-          value={totalTabungan}
-          icon={PiggyBank}
-          colorTheme={colorTheme}
-        />
-        <SummaryCard
-          title="Dana Darurat"
-          value={totalDarurat}
-          icon={Shield}
-          colorTheme={colorTheme}
-        />
-      </div>
-
-      {/* Grid Pemasukan & Pengeluaran (Chart Besar) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
-        <ChartCard 
-          title="Pemasukan" 
-          data={pemasukanData} 
-          size="lg"
-          total={totalPemasukan}
-        />
-        <ChartCard 
-          title="Pengeluaran" 
-          data={pengeluaranData} 
-          size="lg"
-          total={totalPengeluaran}
-        />
-      </div>
-
-      {/* Grid Tabungan, Dana Darurat, Wishlist (Chart Sedang) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-        <ChartCard 
-          title="Tabungan" 
-          data={tabunganData} 
-          size="md"
-          total={totalTabungan}
-        />
-        <ChartCard 
-          title="Dana Darurat" 
-          data={daruratData} 
-          size="md"
-          total={totalDarurat}
-        />
-        <ChartCard 
-          title="Wishlist" 
-          data={wishlistData} 
-          size="md"
-          total={totalWishlist}
-        />
-      </div>
-    </div>
-  );
-}
-
-function SummaryCard({
-  title,
-  value,
-  icon: Icon,
-  colorTheme,
-}: {
-  title: string;
-  value: number;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-  colorTheme: "pink" | "sky" | "indigo" | "green";
-}) {
-  return (
-    <div className={cn(
-      "relative overflow-hidden rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 backdrop-blur-xl border shadow-md hover:shadow-lg transition-all duration-300 group",
-      colorTheme === "pink" && "bg-gradient-to-br from-pink-50/80 to-pink-100/50 dark:from-slate-900/90 dark:to-slate-800/70 border-pink-200/50 dark:border-slate-800",
-      colorTheme === "sky" && "bg-gradient-to-br from-sky-50/80 to-sky-100/50 dark:from-slate-900/90 dark:to-slate-800/70 border-sky-200/50 dark:border-slate-800",
-      colorTheme === "indigo" && "bg-gradient-to-br from-indigo-50/80 to-indigo-100/50 dark:from-slate-900/90 dark:to-slate-800/70 border-indigo-200/50 dark:border-slate-800",
-      colorTheme === "green" && "bg-gradient-to-br from-green-50/80 to-green-100/50 dark:from-slate-900/90 dark:to-slate-800/70 border-green-200/50 dark:border-slate-800",
-    )}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="space-y-1 min-w-0 flex-1">
-          <p className="text-xs sm:text-sm font-medium text-neutral-600 dark:text-neutral-400 truncate">
-            {title}
-          </p>
-          <p className={cn(
-            "text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl font-bold truncate",
-            colorTheme === "pink" && "text-pink-600 dark:text-pink-400",
-            colorTheme === "sky" && "text-sky-600 dark:text-sky-400",
-            colorTheme === "indigo" && "text-indigo-600 dark:text-indigo-400",
-            colorTheme === "green" && "text-green-600 dark:text-green-400",
-          )}>
-            Rp {value.toLocaleString("id-ID")}
-          </p>
-        </div>
-        <div className={cn(
-          "p-1.5 sm:p-2 md:p-3 rounded-lg flex-shrink-0",
-          colorTheme === "pink" && "bg-pink-100/50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400",
-          colorTheme === "sky" && "bg-sky-100/50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400",
-          colorTheme === "indigo" && "bg-indigo-100/50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400",
-          colorTheme === "green" && "bg-green-100/50 dark:bg-green-900/20 text-green-600 dark:text-green-400",
-        )}>
-          <Icon size={16} className="sm:w-5 sm:h-5 md:w-6 md:h-6" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ChartCard({
-  title,
-  data,
-  size = "md",
-  total,
-}: {
-  title: string;
-  data: { name: string; value: number }[];
-  size?: "lg" | "md";
-  total?: number;
-}) {
   const { theme, colorTheme } = useTheme();
-  const radius = size === "lg" ? "75%" : "65%";
-  const height = size === "lg" ? "h-[400px] md:h-[450px]" : "h-[300px] md:h-[350px]";
-  const isDark = theme === "dark";
-  
-  // Warna chart yang lebih nyaman untuk dark mode dengan variasi yang lebih baik
-  const darkColors = [
-    colorTheme === "pink" ? "#ec4899" : colorTheme === "sky" ? "#0ea5e9" : colorTheme === "indigo" ? "#6366f1" : "#22c55e",
-    colorTheme === "pink" ? "#f472b6" : colorTheme === "sky" ? "#38bdf8" : colorTheme === "indigo" ? "#818cf8" : "#4ade80",
-    colorTheme === "pink" ? "#f9a8d4" : colorTheme === "sky" ? "#7dd3fc" : colorTheme === "indigo" ? "#a5b4fc" : "#86efac",
-    colorTheme === "pink" ? "#fbcfe8" : colorTheme === "sky" ? "#bae6fd" : colorTheme === "indigo" ? "#c7d2fe" : "#bbf7d0",
-    colorTheme === "pink" ? "#fce7f3" : colorTheme === "sky" ? "#e0f2fe" : colorTheme === "indigo" ? "#e0e7ff" : "#dcfce7",
-  ];
-  const colors = isDark ? darkColors : getChartColors(colorTheme, false);
+  const themeStyles = buildThemeStyles(colorTheme);
+  const chartColors = getChartColors(colorTheme, theme === "dark");
+  const monthKey = currentMonthKey();
 
-  // Custom label function
-  const renderLabel = (entry: any) => {
-    const percent = ((entry.value / (total || entry.value)) * 100).toFixed(0);
-    return `${percent}%`;
-  };
+  const pemasukkanState = useInvoicesData("pemasukkan");
+  const pengeluaranState = useInvoicesData("pengeluaran");
 
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0];
-      const percent = total ? ((data.value / total) * 100).toFixed(1) : "0";
-      return (
-        <div className={cn(
-          "px-3 py-2 rounded-lg shadow-lg border backdrop-blur-xl",
-          isDark 
-            ? "bg-slate-900/95 border-slate-700 text-slate-100"
-            : "bg-white/95 border-neutral-200 text-neutral-900"
-        )}>
-          <p className="font-semibold text-sm">{data.name}</p>
-          <p className={cn(
-            "text-lg font-bold",
-            colorTheme === "pink" && "text-pink-600 dark:text-pink-400",
-            colorTheme === "sky" && "text-sky-600 dark:text-sky-400",
-            colorTheme === "indigo" && "text-indigo-600 dark:text-indigo-400",
-            colorTheme === "green" && "text-green-600 dark:text-green-400",
-          )}>
-            Rp {data.value.toLocaleString("id-ID")}
-          </p>
-          <p className="text-xs text-neutral-500 dark:text-slate-400 mt-1">
-            {percent}% dari total
-          </p>
-        </div>
-      );
+  const [budgetAlerts, setBudgetAlerts] = useState<BudgetAlert[]>([]);
+  const [budgetNotifEnabled, setBudgetNotifEnabled] = useState(true);
+  const [savingsTargets, setSavingsTargets] = useState<SavingsTarget[]>([]);
+  const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([]);
+  const [insightMode, setInsightMode] = useState<InsightMode>("pengeluaran");
+
+  const loading = pemasukkanState.loading || pengeluaranState.loading;
+
+  const allInvoices = useMemo(
+    () => [...pemasukkanState.invoices, ...pengeluaranState.invoices],
+    [pemasukkanState.invoices, pengeluaranState.invoices]
+  );
+
+  const totals = useMemo(() => totalsByType(allInvoices), [allInvoices]);
+  const netBalance = totals.pemasukkan - totals.pengeluaran;
+  const savings = Math.max(netBalance, 0);
+  const monthInvoices = useMemo(() => filterByMonth(allInvoices, monthKey), [allInvoices, monthKey]);
+
+  const accountBalances = useMemo(() => {
+    const accounts = getAccounts();
+    const invoiceAccountMap = getInvoiceAccountMap();
+    return computeAccountBalances(accounts, allInvoices, invoiceAccountMap).slice(0, 3);
+  }, [allInvoices]);
+
+  const linkedIncomeByTarget = useMemo(() => {
+    const map = new Map<string, number>();
+    pemasukkanState.invoices.forEach((invoice) => {
+      if (!invoice.target_id) return;
+      map.set(invoice.target_id, (map.get(invoice.target_id) ?? 0) + invoice.amount);
+    });
+    return map;
+  }, [pemasukkanState.invoices]);
+
+  const topTarget = useMemo(() => {
+    return [...savingsTargets]
+      .sort(
+        (a, b) =>
+          computeTargetProgress(b, b.savedAmount + (linkedIncomeByTarget.get(b.id) ?? 0)) -
+            computeTargetProgress(a, a.savedAmount + (linkedIncomeByTarget.get(a.id) ?? 0)) ||
+          a.name.localeCompare(b.name)
+      )[0];
+  }, [linkedIncomeByTarget, savingsTargets]);
+
+  const budgetWarnings = useMemo(() => {
+    const budgets = getCategoryBudgets();
+    const spentMap = new Map<string, number>();
+
+    monthInvoices
+      .filter((item) => item.type === "pengeluaran")
+      .forEach((item) => {
+        spentMap.set(item.category, (spentMap.get(item.category) ?? 0) + item.amount);
+      });
+
+    return budgets
+      .map((item) => {
+        const spent = spentMap.get(item.category) ?? 0;
+        const progress = item.limit > 0 ? (spent / item.limit) * 100 : 0;
+        return { ...item, spent, progress };
+      })
+      .filter((item) => item.progress >= 80)
+      .sort((a, b) => b.progress - a.progress)
+      .slice(0, 3);
+  }, [monthInvoices]);
+
+  const chartData = useMemo(
+    () =>
+      insightMode === "pemasukkan"
+        ? groupByCategory(allInvoices.filter((item) => item.type === "pemasukkan"))
+        : groupByCategory(allInvoices.filter((item) => item.type === "pengeluaran")),
+    [allInvoices, insightMode]
+  );
+
+  const chartTotal = insightMode === "pemasukkan" ? totals.pemasukkan : totals.pengeluaran;
+
+  const chartLegend = useMemo(() => {
+    if (chartTotal <= 0) return [];
+    return chartData.slice(0, 5).map((item) => ({
+      ...item,
+      percent: (item.value / chartTotal) * 100,
+    }));
+  }, [chartData, chartTotal]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadGoals = async () => {
+      try {
+        const [targets, wishlist] = await Promise.all([goalsService.listTargets(), goalsService.listWishlist()]);
+        if (!mounted) return;
+        setSavingsTargets(targets);
+        setWishlistItems(wishlist);
+      } catch (error) {
+        if (!mounted || !(error instanceof ApiError)) return;
+        setSavingsTargets([]);
+        setWishlistItems([]);
+      }
+    };
+
+    const loadNotifyPreference = async () => {
+      try {
+        const settings = await settingsService.get();
+        if (!mounted) return;
+        setBudgetNotifEnabled(settings.notify_push);
+      } catch {
+        if (mounted) setBudgetNotifEnabled(true);
+      }
+    };
+
+    void loadGoals();
+    void loadNotifyPreference();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!budgetNotifEnabled) {
+      setBudgetAlerts([]);
+      return;
     }
-    return null;
-  };
+    setBudgetAlerts(syncBudgetAlerts(monthKey, budgetWarnings));
+  }, [budgetNotifEnabled, budgetWarnings, monthKey]);
+
+  if (loading) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-neutral-300 border-t-transparent dark:border-slate-600" />
+      </div>
+    );
+  }
+
+  const activeTargetSaved = topTarget ? topTarget.savedAmount + (linkedIncomeByTarget.get(topTarget.id) ?? 0) : 0;
+  const activeTargetProgress = topTarget ? computeTargetProgress(topTarget, activeTargetSaved) : 0;
 
   return (
-    <div className={cn(
-      "relative overflow-hidden rounded-2xl p-4 md:p-6 lg:p-8 backdrop-blur-xl border shadow-lg hover:shadow-xl transition-all duration-300 group",
-      colorTheme === "pink" && "bg-gradient-to-br from-white/90 to-pink-50/30 dark:from-slate-900/95 dark:to-slate-800/70 border-pink-200/50 dark:border-slate-800",
-      colorTheme === "sky" && "bg-gradient-to-br from-white/90 to-sky-50/30 dark:from-slate-900/95 dark:to-slate-800/70 border-sky-200/50 dark:border-slate-800",
-      colorTheme === "indigo" && "bg-gradient-to-br from-white/90 to-indigo-50/30 dark:from-slate-900/95 dark:to-slate-800/70 border-indigo-200/50 dark:border-slate-800",
-      colorTheme === "green" && "bg-gradient-to-br from-white/90 to-green-50/30 dark:from-slate-900/95 dark:to-slate-800/70 border-green-200/50 dark:border-slate-800",
-    )}>
-      {/* Header */}
-      <div className="mb-4 md:mb-6">
-        <h2 className={cn(
-          "text-xl md:text-2xl lg:text-3xl font-bold bg-clip-text text-transparent mb-2",
-          colorTheme === "pink" && "bg-gradient-to-r from-pink-500 to-pink-600 dark:from-pink-400 dark:to-pink-500",
-          colorTheme === "sky" && "bg-gradient-to-r from-sky-500 to-sky-600 dark:from-sky-400 dark:to-sky-500",
-          colorTheme === "indigo" && "bg-gradient-to-r from-indigo-500 to-indigo-600 dark:from-indigo-400 dark:to-indigo-500",
-          colorTheme === "green" && "bg-gradient-to-r from-green-500 to-green-600 dark:from-green-400 dark:to-green-500",
-        )}>
-          {title}
-        </h2>
-        {total && (
-          <p className={cn(
-            "text-sm md:text-base text-neutral-600 dark:text-slate-300",
-          )}>
-            Total: Rp {total.toLocaleString("id-ID")}
-          </p>
+    <div className="mx-auto w-full max-w-6xl space-y-4 sm:space-y-5">
+      <section
+        className={cn(
+          "overflow-hidden rounded-[28px] border bg-white shadow-[0_24px_70px_-38px_rgba(15,23,42,0.18)] transition-shadow duration-300 hover:shadow-[0_28px_90px_-42px_rgba(15,23,42,0.22)] dark:bg-slate-950",
+          themeStyles.shell
         )}
-      </div>
-
-      {/* Chart */}
-      <div className={height}>
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={data}
-              dataKey="value"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              outerRadius={radius}
-              innerRadius={size === "lg" ? "45%" : "40%"}
-              paddingAngle={2}
-              label={renderLabel}
-              labelLine={false}
-              animationBegin={0}
-              animationDuration={800}
-            >
-              {data.map((_, index) => (
-                <Cell 
-                  key={index} 
-                  fill={colors[index % colors.length]}
-                  stroke={isDark ? "#1e293b" : "#ffffff"}
-                  strokeWidth={2}
-                />
-              ))}
-            </Pie>
-            <Tooltip content={<CustomTooltip />} />
-            <Legend
-              verticalAlign="bottom"
-              height={36}
-              iconType="circle"
-              wrapperStyle={{
-                paddingTop: "20px",
-                fontSize: "12px",
-              }}
-              formatter={(value: string) => (
-                <span className="text-xs md:text-sm text-neutral-700 dark:text-slate-200">
-                  {value}
-                </span>
-              )}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Legend Items */}
-      <div className="mt-4 md:mt-6 grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
-        {data.map((item, index) => {
-          const percent = total ? ((item.value / total) * 100).toFixed(1) : "0";
-          return (
-            <div
-              key={index}
-              className="flex items-center gap-2 p-2 rounded-lg bg-white/50 dark:bg-slate-800/70 backdrop-blur-sm border dark:border-slate-700/50"
-            >
-              <div
-                className="w-3 h-3 rounded-full flex-shrink-0 border dark:border-slate-600"
-                style={{ backgroundColor: colors[index % colors.length] }}
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-neutral-700 dark:text-slate-200 truncate">
-                  {item.name}
-                </p>
-                <p className={cn(
-                  "text-xs font-semibold",
-                  colorTheme === "pink" && "text-pink-600 dark:text-pink-400",
-                  colorTheme === "sky" && "text-sky-600 dark:text-sky-400",
-                  colorTheme === "indigo" && "text-indigo-600 dark:text-indigo-400",
-                  colorTheme === "green" && "text-green-600 dark:text-green-400",
-                )}>
-                  {percent}%
+      >
+        <div className={cn("bg-gradient-to-r px-4 py-5 sm:px-5 md:px-6 md:py-6", themeStyles.gradient)}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-2 text-white">
+              <div className="inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em]">
+                Dashboard
+              </div>
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{formatJakartaMonthLabel(monthKey)}</h1>
+                <p className="mt-1 text-sm text-white/75">
+                  {allInvoices.length} transaksi aktif
                 </p>
               </div>
             </div>
-          );
-        })}
-      </div>
+
+            <div className="rounded-[22px] border border-white/15 bg-white/10 px-4 py-3 text-white sm:min-w-[240px]">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/70">Saldo Bersih</p>
+              <p className="mt-2 text-2xl font-semibold sm:text-3xl">{formatCurrency(netBalance)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-neutral-100 bg-white p-4 dark:border-slate-900 dark:bg-slate-950 sm:p-5 md:px-6 md:pb-6 md:pt-5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <MetricCard title="Pemasukan" value={totals.pemasukkan} icon={TrendingUp} themeStyles={themeStyles} index={0} href="/invoices/pemasukkan" />
+            <MetricCard title="Pengeluaran" value={totals.pengeluaran} icon={TrendingDown} themeStyles={themeStyles} index={1} href="/invoices/pengeluaran" />
+            <MetricCard title="Tabungan" value={savings} icon={PiggyBank} themeStyles={themeStyles} index={2} href="/accounts" />
+          </div>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.25fr_0.85fr]">
+        <div
+          className={cn(
+            "rounded-[24px] border bg-white p-4 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.16)] transition-shadow duration-300 hover:shadow-[0_24px_70px_-42px_rgba(15,23,42,0.2)] dark:bg-slate-950 sm:p-5",
+            themeStyles.shell
+          )}
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-neutral-950 dark:text-white">Insight Kategori</p>
+              <p className="mt-1 text-xs text-neutral-500 dark:text-slate-400">Pilih konteks untuk lihat komposisi transaksi.</p>
+            </div>
+
+            <div className={cn("inline-flex rounded-full border p-1", themeStyles.soft, themeStyles.shell)}>
+              {[
+                { key: "pengeluaran", label: "Pengeluaran" },
+                { key: "pemasukkan", label: "Pemasukan" },
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setInsightMode(item.key as InsightMode)}
+                  className={cn(
+                    "relative rounded-full px-3.5 py-2 text-xs font-medium transition sm:px-4",
+                    insightMode === item.key ? "text-white" : "text-neutral-500 hover:text-neutral-900 dark:text-slate-400 dark:hover:text-white"
+                  )}
+                >
+                  {insightMode === item.key ? (
+                    <motion.span
+                      layoutId="dashboard-insight-pill"
+                      className={cn("absolute inset-0 rounded-full", themeStyles.accentBg)}
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                    />
+                  ) : null}
+                  <span className="relative z-[1]">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center">
+            <motion.div
+              layout
+              className="rounded-[22px] border border-neutral-200/80 bg-neutral-50/80 p-3 dark:border-slate-800 dark:bg-slate-900 sm:p-4"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+                    {insightMode === "pemasukkan" ? "Kategori Pemasukan" : "Kategori Pengeluaran"}
+                  </p>
+                  <p className="mt-1 text-xs text-neutral-500 dark:text-slate-400">{formatCurrency(chartTotal)}</p>
+                </div>
+                <div className={cn("rounded-full px-3 py-1 text-[11px] font-medium", themeStyles.accentSoft)}>
+                  {chartData.length} kategori
+                </div>
+              </div>
+
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={insightMode}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  <div className="mt-3 h-[240px] sm:h-[280px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={chartData.length > 0 ? chartData : [{ name: "Belum ada data", value: 1 }]}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius="48%"
+                          outerRadius="78%"
+                          paddingAngle={3}
+                        >
+                          {(chartData.length > 0 ? chartData : [{ name: "Belum ada data", value: 1 }]).map((_, index) => (
+                            <Cell key={index} fill={chartColors[index % chartColors.length]} stroke={theme === "dark" ? "#0f172a" : "#ffffff"} strokeWidth={2} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value: number) => formatCurrency(value)}
+                          contentStyle={{
+                            borderRadius: 16,
+                            border: "1px solid rgba(148,163,184,0.18)",
+                            background: theme === "dark" ? "rgba(15,23,42,0.96)" : "rgba(255,255,255,0.96)",
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </motion.div>
+              </AnimatePresence>
+            </motion.div>
+
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={`${insightMode}-legend`}
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                className="space-y-2.5"
+              >
+                {chartLegend.length === 0 ? (
+                  <div className="rounded-[20px] border border-dashed border-neutral-200 bg-neutral-50/80 p-4 text-sm text-neutral-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+                    Belum ada data kategori.
+                  </div>
+                ) : (
+                  chartLegend.map((item, index) => (
+                    <motion.div
+                      key={item.name}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.04, duration: 0.18 }}
+                      className="rounded-[18px] border border-neutral-200/80 bg-neutral-50/80 p-3 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span
+                          className="mt-0.5 inline-flex h-3 w-3 shrink-0 rounded-full"
+                          style={{ backgroundColor: chartColors[index % chartColors.length] }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-neutral-900 dark:text-white">{item.name}</p>
+                          <div className="mt-1 flex items-center justify-between gap-3 text-xs text-neutral-500 dark:text-slate-400">
+                            <span>{formatCurrency(item.value)}</span>
+                            <span>{item.percent.toFixed(0)}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {(topTarget || wishlistItems.length > 0) && (
+            <section
+              className={cn(
+                "rounded-[24px] border bg-white p-4 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.16)] transition-shadow duration-300 hover:shadow-[0_24px_70px_-42px_rgba(15,23,42,0.2)] dark:bg-slate-950 sm:p-5",
+                themeStyles.shell
+              )}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-neutral-950 dark:text-white">Target & Wishlist</p>
+                  <p className="mt-1 text-xs text-neutral-500 dark:text-slate-400">Ringkas, tetap fokus.</p>
+                </div>
+                <Link href="/goals" className={cn("inline-flex h-9 items-center rounded-full px-4 text-sm font-medium transition", themeStyles.accentBg)}>
+                  Buka
+                </Link>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {topTarget ? (
+                  <Link
+                    href="/goals"
+                    className={cn("block rounded-[20px] border p-3.5 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-sm", themeStyles.soft, themeStyles.shell)}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={cn("inline-flex h-8 w-8 items-center justify-center rounded-2xl", themeStyles.icon)}>
+                            <Target className="h-4 w-4" />
+                          </span>
+                          <p className="truncate text-sm font-semibold text-neutral-950 dark:text-white">{topTarget.name}</p>
+                        </div>
+                        <p className="mt-2 text-xs text-neutral-500 dark:text-slate-400">
+                          {formatCurrency(activeTargetSaved)} / {formatCurrency(topTarget.targetAmount)}
+                        </p>
+                      </div>
+                      <p className="text-sm font-semibold text-neutral-900 dark:text-white">{activeTargetProgress.toFixed(0)}%</p>
+                    </div>
+                    <div className="mt-3 h-2 rounded-full bg-neutral-200 dark:bg-slate-800">
+                      <div className={cn("h-full rounded-full", themeStyles.progress)} style={{ width: `${Math.min(activeTargetProgress, 100)}%` }} />
+                    </div>
+                  </Link>
+                ) : null}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniInfo title="Target" value={`${savingsTargets.length}`} themeStyles={themeStyles} href="/goals" />
+                  <MiniInfo title="Wishlist" value={`${wishlistItems.length}`} themeStyles={themeStyles} href="/goals" />
+                </div>
+              </div>
+            </section>
+          )}
+
+          {(budgetAlerts.length > 0 || budgetWarnings.length > 0) && (
+            <section
+              className={cn(
+                "rounded-[24px] border bg-white p-4 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.16)] transition-shadow duration-300 hover:shadow-[0_24px_70px_-42px_rgba(15,23,42,0.2)] dark:bg-slate-950 sm:p-5",
+                themeStyles.shell
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <span className={cn("inline-flex h-8 w-8 items-center justify-center rounded-2xl", themeStyles.icon)}>
+                  <Bell className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-neutral-950 dark:text-white">Budget Watch</p>
+                  <p className="mt-1 text-xs text-neutral-500 dark:text-slate-400">Kategori yang perlu dicek lebih dulu.</p>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2.5">
+                {budgetAlerts.length > 0
+                  ? budgetAlerts.slice(0, 3).map((item) => {
+                      const isOver = item.level === "over";
+                      return (
+                        <div
+                          key={item.id}
+                          className={cn(
+                            "rounded-[18px] border p-3",
+                            isOver
+                              ? "border-red-200 bg-red-50/80 dark:border-red-900/50 dark:bg-red-950/25"
+                              : "border-amber-200 bg-amber-50/80 dark:border-amber-900/50 dark:bg-amber-950/25"
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className={cn("truncate text-sm font-semibold", isOver ? "text-red-700 dark:text-red-300" : "text-amber-700 dark:text-amber-300")}>
+                                {item.category}
+                              </p>
+                              <p className="mt-1 text-xs text-neutral-600 dark:text-slate-300">
+                                {formatCurrency(item.spent)} / {formatCurrency(item.limit)}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-medium", isOver ? "bg-red-100 text-red-700 dark:bg-red-900/35 dark:text-red-200" : "bg-amber-100 text-amber-700 dark:bg-amber-900/35 dark:text-amber-200")}>
+                                {item.progress.toFixed(0)}%
+                              </span>
+                              <button
+                                onClick={() => {
+                                  dismissBudgetAlert(item.id);
+                                  setBudgetAlerts((prev) => prev.filter((alert) => alert.id !== item.id));
+                                }}
+                                className="rounded-md p-1 hover:bg-black/5 dark:hover:bg-white/10"
+                                aria-label="Tutup notifikasi"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  : budgetWarnings.slice(0, 3).map((item) => {
+                      const isOver = item.progress >= 100;
+                      return (
+                        <div
+                          key={item.category}
+                          className={cn(
+                            "rounded-[18px] border p-3",
+                            isOver
+                              ? "border-red-200 bg-red-50/80 dark:border-red-900/50 dark:bg-red-950/25"
+                              : "border-amber-200 bg-amber-50/80 dark:border-amber-900/50 dark:bg-amber-950/25"
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className={cn("truncate text-sm font-semibold", isOver ? "text-red-700 dark:text-red-300" : "text-amber-700 dark:text-amber-300")}>
+                                {item.category}
+                              </p>
+                              <p className="mt-1 text-xs text-neutral-600 dark:text-slate-300">
+                                {formatCurrency(item.spent)} / {formatCurrency(item.limit)}
+                              </p>
+                            </div>
+                            <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-medium", isOver ? "bg-red-100 text-red-700 dark:bg-red-900/35 dark:text-red-200" : "bg-amber-100 text-amber-700 dark:bg-amber-900/35 dark:text-amber-200")}>
+                              {item.progress.toFixed(0)}%
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+              </div>
+            </section>
+          )}
+
+          {accountBalances.length > 0 && (
+            <section
+              className={cn(
+                "rounded-[24px] border bg-white p-4 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.16)] transition-shadow duration-300 hover:shadow-[0_24px_70px_-42px_rgba(15,23,42,0.2)] dark:bg-slate-950 sm:p-5",
+                themeStyles.shell
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <span className={cn("inline-flex h-8 w-8 items-center justify-center rounded-2xl", themeStyles.icon)}>
+                  <Wallet className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-neutral-950 dark:text-white">Rekening</p>
+                  <p className="mt-1 text-xs text-neutral-500 dark:text-slate-400">Saldo akun utama.</p>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2.5">
+                {accountBalances.map((account) => (
+                  <Link
+                    key={account.id}
+                    href="/accounts"
+                    className="flex items-center justify-between gap-3 rounded-[18px] border border-neutral-200/80 bg-neutral-50/80 p-3 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs uppercase tracking-[0.18em] text-neutral-400 dark:text-slate-500">{account.type}</p>
+                      <p className="truncate text-sm font-semibold text-neutral-900 dark:text-white">{account.name}</p>
+                    </div>
+                    <p className={cn("text-sm font-semibold", account.balance >= 0 ? "text-emerald-600 dark:text-emerald-300" : "text-red-600 dark:text-red-300")}>
+                      {formatCurrency(account.balance)}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
 
+function MetricCard({
+  title,
+  value,
+  icon: Icon,
+  themeStyles,
+  index,
+  href,
+}: {
+  title: string;
+  value: number;
+  icon: React.ComponentType<{ className?: string }>;
+  themeStyles: ReturnType<typeof buildThemeStyles>;
+  index: number;
+  href: string;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.05, duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <Link
+        href={href}
+        className="block rounded-[22px] border border-neutral-200/80 bg-neutral-50/90 p-3.5 text-neutral-950 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-400 dark:text-slate-500">{title}</p>
+            <p className="mt-2 truncate text-lg font-semibold sm:text-xl">{formatCurrency(value)}</p>
+          </div>
+          <span className={cn("inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl", themeStyles.icon)}>
+            <Icon className="h-4.5 w-4.5" />
+          </span>
+        </div>
+      </Link>
+    </motion.div>
+  );
+}
+
+function MiniInfo({
+  title,
+  value,
+  themeStyles,
+  href,
+}: {
+  title: string;
+  value: string;
+  themeStyles: ReturnType<typeof buildThemeStyles>;
+  href: string;
+}) {
+  return (
+    <Link href={href} className={cn("block rounded-[18px] border p-3 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-sm", themeStyles.soft, themeStyles.shell)}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500 dark:text-slate-400">{title}</p>
+      <p className="mt-2 text-lg font-semibold text-neutral-950 dark:text-white">{value}</p>
+    </Link>
+  );
+}

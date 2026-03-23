@@ -11,6 +11,7 @@ export interface Invoice {
   note: string;
   category: string;
   type: InvoiceType;
+  target_id?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -21,6 +22,7 @@ export interface InvoiceCreatePayload {
   note: string;
   category: string;
   type: InvoiceType;
+  target_id?: number;
 }
 
 export interface InvoiceUpdatePayload extends Partial<InvoiceCreatePayload> {}
@@ -38,6 +40,74 @@ export interface Category {
   type_id: number | null;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface AuthPayload {
+  email: string;
+  password: string;
+  name?: string;
+}
+
+export interface AuthResponse {
+  token?: string;
+  access_token?: string;
+  data?: {
+    token?: string;
+    access_token?: string;
+  };
+  message?: string;
+  error?: string;
+}
+
+export interface Profile {
+  id: number;
+  name: string;
+  email: string;
+  phone?: string | null;
+  address?: string | null;
+  birth_date?: string | null;
+  bio?: string | null;
+}
+
+export interface ProfileUpdatePayload {
+  name?: string;
+  phone?: string;
+  address?: string;
+  birth_date?: string;
+  bio?: string;
+}
+
+export interface Settings {
+  theme: "light" | "dark";
+  color_theme: "pink" | "sky" | "indigo" | "green";
+  notify_email: boolean;
+  notify_push: boolean;
+  notify_sms: boolean;
+  profile_visibility: "public" | "friends" | "private";
+  data_sharing: boolean;
+}
+
+export interface SettingsUpdatePayload {
+  theme?: "light" | "dark";
+  color_theme?: "pink" | "sky" | "indigo" | "green";
+  notify_email?: boolean;
+  notify_push?: boolean;
+  notify_sms?: boolean;
+  profile_visibility?: "public" | "friends" | "private";
+  data_sharing?: boolean;
+}
+
+export interface CategoryBudget {
+  id?: number;
+  category: string;
+  limit: number;
+  scope?: "monthly" | "weekly";
+}
+
+export interface UpsertBudgetPayload {
+  category: string;
+  limit: number;
+  scope?: "monthly" | "weekly";
 }
 
 /** Query params for GET /invoices */

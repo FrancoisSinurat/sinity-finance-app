@@ -1,17 +1,22 @@
-"use client";
+﻿"use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useTheme } from "@/lib/theme-provider";
 import { cn } from "@/lib/utils";
-import { useInvoicesData } from "@/lib/api";
+import { ApiError, goalsService, useInvoicesData } from "@/lib/api";
 import type { InvoiceType } from "@/lib/api";
 import type { Invoice } from "@/lib/api";
-import { Pencil, Trash2 } from "lucide-react";
 import { InvoiceFormDialog } from "@/components/InvoiceFormDialog";
+import { Pencil, Trash2, ChevronLeft, ChevronRight, CalendarDays, Search, Plus, ListFilter } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { getAccounts, getInvoiceAccountMap, setInvoiceAccount, type Account } from "@/lib/accounts-storage";
+import { formatJakartaDateLabel, formatJakartaMonthLabel, getJakartaMonthDate, getJakartaMonthParts, getJakartaToday } from "@/lib/date-time";
+import { formatCurrencyInput, parseCurrencyInput } from "@/lib/currency-input";
+import type { SavingsTarget } from "@/lib/goals-storage";
 
 function buildNoteWithTags(note: string, tagsInput: string): string {
   const tags = tagsInput
@@ -21,6 +26,68 @@ function buildNoteWithTags(note: string, tagsInput: string): string {
     .map((t) => (t.startsWith("#") ? t : `#${t}`))
     .join(" ");
   return tags ? `${note.trim()} ${tags}`.trim() : note.trim();
+}
+
+function toMonthKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabel(date: Date): string {
+  return formatJakartaMonthLabel(date);
+}
+
+function formatDateLabel(dateStr: string): string {
+  return formatJakartaDateLabel(dateStr);
+}
+
+function formatCurrency(amount: number): string {
+  return `Rp ${amount.toLocaleString("id-ID")}`;
+}
+
+function toLocalDateInputValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+type CalendarCell = {
+  date: string;
+  dayNumber: number;
+  inCurrentMonth: boolean;
+};
+
+function buildMonthCells(monthDate: Date): CalendarCell[] {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+
+  const firstOfMonth = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDayIndex = (firstOfMonth.getDay() + 6) % 7;
+
+  const cells: CalendarCell[] = [];
+
+  if (firstDayIndex > 0) {
+    const prevMonthDays = new Date(year, month, 0).getDate();
+    for (let i = firstDayIndex - 1; i >= 0; i--) {
+      const day = prevMonthDays - i;
+      const d = new Date(year, month - 1, day);
+      cells.push({ date: toLocalDateInputValue(d), dayNumber: day, inCurrentMonth: false });
+    }
+  }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const d = new Date(year, month, day);
+    cells.push({ date: toLocalDateInputValue(d), dayNumber: day, inCurrentMonth: true });
+  }
+
+  while (cells.length < 42) {
+    const nextDay = cells.length - (firstDayIndex + daysInMonth) + 1;
+    const d = new Date(year, month + 1, nextDay);
+    cells.push({ date: toLocalDateInputValue(d), dayNumber: nextDay, inCurrentMonth: false });
+  }
+
+  return cells;
 }
 
 function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
@@ -35,11 +102,18 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
     deleteInvoice,
   } = useInvoicesData(type);
 
+  const todayStr = getJakartaToday();
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<string | null>(null);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
+  const [monthCursor, setMonthCursor] = useState(() => getJakartaMonthDate());
+  const [monthDirection, setMonthDirection] = useState(1);
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+  const [draftMonth, setDraftMonth] = useState(() => getJakartaMonthParts().month);
+  const [draftYear, setDraftYear] = useState(() => getJakartaMonthParts().year);
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  const [isDayModalOpen, setIsDayModalOpen] = useState(false);
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
@@ -48,20 +122,154 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
   const [errorMessage, setErrorMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().slice(0, 10),
+    date: getJakartaToday(),
     amount: "",
     note: "",
     category: "",
     tags: "",
   });
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [invoiceAccountMap, setInvoiceAccountMap] = useState<Record<string, string>>({});
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [targets, setTargets] = useState<SavingsTarget[]>([]);
+  const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
+
   const perPage = 10;
   const { colorTheme } = useTheme();
+  const themeStyles = useMemo(() => {
+    if (colorTheme === "pink") {
+      return {
+        calendarTitle: "text-pink-600 dark:text-pink-400",
+        weekdayText: "text-pink-500/90 dark:text-pink-300/90",
+        currentMonthText: "text-pink-700 dark:text-pink-200",
+        currentMonthBorder: "border-pink-200/80 dark:border-pink-900/60",
+        hasDataBorder: "border-pink-300 dark:border-pink-700",
+        hasDataBg: "bg-pink-50/50 dark:bg-pink-900/20",
+        hasDataDot: "bg-pink-500",
+        hasDataText: "text-pink-700 dark:text-pink-300",
+        calendarShell: "border-pink-200/90 dark:border-pink-900/60 bg-gradient-to-b from-pink-50/80 via-white to-pink-50/40 dark:from-pink-950/30 dark:via-slate-900/80 dark:to-pink-950/20",
+        monthButton: "border-pink-200/80 text-pink-600 hover:bg-pink-50 dark:border-pink-900/60 dark:text-pink-300 dark:hover:bg-pink-900/20",
+        cellSelected: "bg-pink-100/80 dark:bg-pink-900/35 shadow-[0_6px_18px_-10px_rgba(236,72,153,0.8)]",
+      };
+    }
 
-  const categoryNamesFromApi = apiCategories.map((c) => c.name);
-  const categoryNamesFromData = Array.from(new Set(data.map((d) => d.category)));
-  const categories = Array.from(new Set([...categoryNamesFromApi, ...categoryNamesFromData]));
+    if (colorTheme === "sky") {
+      return {
+        calendarTitle: "text-sky-600 dark:text-sky-400",
+        weekdayText: "text-sky-500/90 dark:text-sky-300/90",
+        currentMonthText: "text-sky-700 dark:text-sky-200",
+        currentMonthBorder: "border-sky-200/80 dark:border-sky-900/60",
+        hasDataBorder: "border-sky-300 dark:border-sky-700",
+        hasDataBg: "bg-sky-50/50 dark:bg-sky-900/20",
+        hasDataDot: "bg-sky-500",
+        hasDataText: "text-sky-700 dark:text-sky-300",
+        calendarShell: "border-sky-200/90 dark:border-sky-900/60 bg-gradient-to-b from-sky-50/80 via-white to-sky-50/40 dark:from-sky-950/30 dark:via-slate-900/80 dark:to-sky-950/20",
+        monthButton: "border-sky-200/80 text-sky-600 hover:bg-sky-50 dark:border-sky-900/60 dark:text-sky-300 dark:hover:bg-sky-900/20",
+        cellSelected: "bg-sky-100/80 dark:bg-sky-900/35 shadow-[0_6px_18px_-10px_rgba(14,165,233,0.85)]",
+      };
+    }
+
+    if (colorTheme === "indigo") {
+      return {
+        calendarTitle: "text-indigo-600 dark:text-indigo-400",
+        weekdayText: "text-indigo-500/90 dark:text-indigo-300/90",
+        currentMonthText: "text-indigo-700 dark:text-indigo-200",
+        currentMonthBorder: "border-indigo-200/80 dark:border-indigo-900/60",
+        hasDataBorder: "border-indigo-300 dark:border-indigo-700",
+        hasDataBg: "bg-indigo-50/50 dark:bg-indigo-900/20",
+        hasDataDot: "bg-indigo-500",
+        hasDataText: "text-indigo-700 dark:text-indigo-300",
+        calendarShell: "border-indigo-200/90 dark:border-indigo-900/60 bg-gradient-to-b from-indigo-50/80 via-white to-indigo-50/40 dark:from-indigo-950/30 dark:via-slate-900/80 dark:to-indigo-950/20",
+        monthButton: "border-indigo-200/80 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-900/60 dark:text-indigo-300 dark:hover:bg-indigo-900/20",
+        cellSelected: "bg-indigo-100/80 dark:bg-indigo-900/35 shadow-[0_6px_18px_-10px_rgba(99,102,241,0.85)]",
+      };
+    }
+
+    return {
+      calendarTitle: "text-green-600 dark:text-green-400",
+      weekdayText: "text-green-500/90 dark:text-green-300/90",
+      currentMonthText: "text-green-700 dark:text-green-200",
+      currentMonthBorder: "border-green-200/80 dark:border-green-900/60",
+      hasDataBorder: "border-green-300 dark:border-green-700",
+      hasDataBg: "bg-green-50/50 dark:bg-green-900/20",
+      hasDataDot: "bg-green-500",
+      hasDataText: "text-green-700 dark:text-green-300",
+      calendarShell: "border-green-200/90 dark:border-green-900/60 bg-gradient-to-b from-green-50/80 via-white to-green-50/40 dark:from-green-950/30 dark:via-slate-900/80 dark:to-green-950/20",
+      monthButton: "border-green-200/80 text-green-600 hover:bg-green-50 dark:border-green-900/60 dark:text-green-300 dark:hover:bg-green-900/20",
+      cellSelected: "bg-green-100/80 dark:bg-green-900/35 shadow-[0_6px_18px_-10px_rgba(34,197,94,0.8)]",
+    };
+  }, [colorTheme]);
+
+  const categories = useMemo(() => {
+    const categoryNamesFromApi = apiCategories.map((c) => c.name);
+    const categoryNamesFromData = Array.from(new Set(data.map((d) => d.category)));
+    return Array.from(new Set([...categoryNamesFromApi, ...categoryNamesFromData]));
+  }, [apiCategories, data]);
 
   const isEditMode = editingInvoice != null;
+  const activeMonthKey = toMonthKey(monthCursor);
+
+  const monthRows = useMemo(() => data.filter((d) => d.date.startsWith(activeMonthKey)), [data, activeMonthKey]);
+  const monthTotal = useMemo(() => monthRows.reduce((sum, row) => sum + row.amount, 0), [monthRows]);
+
+  const dayTotals = useMemo(() => {
+    const map = new Map<string, number>();
+    monthRows.forEach((item) => {
+      map.set(item.date, (map.get(item.date) ?? 0) + item.amount);
+    });
+    return map;
+  }, [monthRows]);
+
+  const selectedRows = useMemo(() => {
+    let rows = data.filter((d) => d.date === selectedDate);
+    if (search) {
+      const q = search.toLowerCase();
+      rows = rows.filter((d) => d.note.toLowerCase().includes(q) || d.category.toLowerCase().includes(q));
+    }
+    if (sortBy) rows = rows.filter((d) => d.category === sortBy);
+    return rows;
+  }, [data, selectedDate, search, sortBy]);
+
+  const activeRows = selectedRows;
+  const totalPages = Math.max(1, Math.ceil(activeRows.length / perPage));
+  const paginated = activeRows.slice((page - 1) * perPage, page * perPage);
+
+  const selectedTotal = selectedDate ? dayTotals.get(selectedDate) ?? 0 : 0;
+  const cells = useMemo(() => buildMonthCells(monthCursor), [monthCursor]);
+  const accountNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    accounts.forEach((acc) => map.set(acc.id, acc.name));
+    return map;
+  }, [accounts]);
+
+  useEffect(() => {
+    setAccounts(getAccounts());
+    setInvoiceAccountMap(getInvoiceAccountMap());
+  }, [isDialogOpen, isDayModalOpen]);
+
+  useEffect(() => {
+    let mounted = true;
+    if (type !== "pemasukkan") {
+      setTargets([]);
+      return;
+    }
+
+    const loadTargets = async () => {
+      try {
+        const items = await goalsService.listTargets();
+        if (mounted) setTargets(items);
+      } catch (error) {
+        if (mounted && error instanceof ApiError) {
+          setTargets([]);
+        }
+      }
+    };
+
+    void loadTargets();
+    return () => {
+      mounted = false;
+    };
+  }, [type]);
 
   const handleSubmitInvoice = async (e?: React.FormEvent) => {
     if (e) {
@@ -72,19 +280,25 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
       setErrorMessage("Mohon isi semua field!");
       return;
     }
+
     setErrorMessage("");
     setSubmitting(true);
+
     const noteWithTags = buildNoteWithTags(formData.note, formData.tags);
     const payload = {
       date: formData.date,
-      amount: Number(formData.amount),
+      amount: parseCurrencyInput(formData.amount),
       note: noteWithTags,
       category: formData.category,
+      ...(type === "pemasukkan" ? { target_id: selectedTargetId ? Number(selectedTargetId) : 0 } : {}),
     };
+
     if (isEditMode && editingInvoice) {
       const updated = await updateInvoice(editingInvoice.id, payload);
       setSubmitting(false);
       if (updated) {
+        setInvoiceAccount(updated.id, selectedAccountId);
+        setInvoiceAccountMap(getInvoiceAccountMap());
         setEditingInvoice(null);
         setIsDialogOpen(false);
         resetFormAndClose();
@@ -93,12 +307,12 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
       }
       return;
     }
-    const created = await createInvoice({
-      ...payload,
-      note: noteWithTags,
-    });
+
+    const created = await createInvoice({ ...payload, note: noteWithTags });
     setSubmitting(false);
     if (created) {
+      setInvoiceAccount(created.id, selectedAccountId);
+      setInvoiceAccountMap(getInvoiceAccountMap());
       resetFormAndClose();
       setPage(1);
     } else {
@@ -108,7 +322,7 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
 
   function resetFormAndClose() {
     setFormData({
-      date: new Date().toISOString().slice(0, 10),
+      date: selectedDate || getJakartaToday(),
       amount: "",
       note: "",
       category: "",
@@ -116,6 +330,8 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
     });
     setEditingInvoice(null);
     setIsCustomCategory(false);
+    setSelectedAccountId(null);
+    setSelectedTargetId(null);
     setFormKey((prev) => prev + 1);
     setIsDialogOpen(false);
     setErrorMessage("");
@@ -131,7 +347,6 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
     }
   };
 
-  /** Extract #tag from note for edit form */
   function parseTagsFromNote(note: string): string {
     const matches = note.match(/#[\w\u00a0-\u024f]+/gi) || [];
     return matches.map((m) => m.slice(1)).join(", ");
@@ -145,11 +360,13 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
     setEditingInvoice(inv);
     setFormData({
       date: inv.date,
-      amount: String(inv.amount),
+      amount: formatCurrencyInput(String(inv.amount)),
       note: noteWithoutTags(inv.note),
       category: inv.category,
       tags: parseTagsFromNote(inv.note),
     });
+    setSelectedAccountId(getInvoiceAccountMap()[String(inv.id)] ?? null);
+    setSelectedTargetId(type === "pemasukkan" ? inv.target_id ?? null : null);
     setFormKey((prev) => prev + 1);
     setIsDialogOpen(true);
     setErrorMessage("");
@@ -157,35 +374,42 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
 
   const handleDeleteConfirm = async () => {
     if (deleteConfirmId == null) return;
+    const deletingId = deleteConfirmId;
     const ok = await deleteInvoice(deleteConfirmId);
     setDeleteConfirmId(null);
-    if (ok) setPage((p) => Math.max(1, p - 1));
+    if (ok) {
+      setInvoiceAccount(deletingId, null);
+      setInvoiceAccountMap(getInvoiceAccountMap());
+      setPage((p) => Math.max(1, p - 1));
+    }
   };
 
-  let filtered = data.filter(
-    (d) =>
-      d.note.toLowerCase().includes(search.toLowerCase()) ||
-      d.category.toLowerCase().includes(search.toLowerCase())
-  );
+  const openDayModal = (date: string) => {
+    setSelectedDate(date);
+    setSearch("");
+    setSortBy(null);
+    setPage(1);
+    setIsDayModalOpen(true);
+  };
 
-  if (sortBy) {
-    filtered = filtered.filter((d) => d.category === sortBy);
-  }
+  const openMonthPicker = () => {
+    setDraftMonth(monthCursor.getMonth() + 1);
+    setDraftYear(monthCursor.getFullYear());
+    setIsMonthPickerOpen(true);
+  };
 
-  if (dateFrom) {
-    filtered = filtered.filter((d) => d.date >= dateFrom);
-  }
-  if (dateTo) {
-    filtered = filtered.filter((d) => d.date <= dateTo);
-  }
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
-  const paginated = filtered.slice((page - 1) * perPage, page * perPage);
+  const applyMonthPicker = () => {
+    if (draftMonth < 1 || draftMonth > 12) return;
+    if (draftYear < 2000 || draftYear > 2100) return;
+    const target = new Date(draftYear, draftMonth - 1, 1);
+    setMonthDirection(target.getTime() >= monthCursor.getTime() ? 1 : -1);
+    setMonthCursor(target);
+    setIsMonthPickerOpen(false);
+  };
 
   return (
-    <div className="h-full bg-white/50 dark:bg-slate-900/60 rounded-xl p-3 sm:p-4 md:p-6 lg:p-8 backdrop-blur-sm flex flex-col border dark:border-slate-800/50">
-      <div className="w-full space-y-4 flex-1 flex flex-col overflow-hidden">
-        {/* API error */}
+    <div className="h-full w-full max-w-5xl mx-auto bg-white/50 dark:bg-slate-900/60 rounded-xl p-3 sm:p-4 md:p-5 backdrop-blur-sm flex flex-col border dark:border-slate-800/50">
+      <div className="w-full space-y-3.5 flex-1 flex flex-col overflow-visible">
         {apiError && (
           <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm">
             <span>{apiError}</span>
@@ -195,53 +419,214 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
           </div>
         )}
 
-        {/* Judul */}
-        <h1 className={cn(
-          "text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold bg-clip-text text-transparent dark:from-slate-200 dark:to-slate-200",
-          colorTheme === "pink" && "bg-gradient-to-r from-pink-500 to-pink-500 dark:from-pink-400 dark:to-pink-400",
-          colorTheme === "sky" && "bg-gradient-to-r from-sky-500 to-sky-500 dark:from-sky-400 dark:to-sky-400",
-          colorTheme === "indigo" && "bg-gradient-to-r from-indigo-500 to-indigo-500 dark:from-indigo-400 dark:to-indigo-400",
-          colorTheme === "green" && "bg-gradient-to-r from-green-500 to-green-500 dark:from-green-400 dark:to-green-400",
-        ) }
-        >
-          {title}
-        </h1>
-
-        {/* Pencarian & filter */}
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1">
-              <Input
-                placeholder="Cari catatan atau kategori..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+        <>
+            <div
+              className={cn(
+                "rounded-2xl border p-4 sm:p-5 text-white relative overflow-hidden",
+                colorTheme === "pink" && "border-pink-300/60 bg-gradient-to-br from-pink-500 to-pink-600",
+                colorTheme === "sky" && "border-sky-300/60 bg-gradient-to-br from-sky-500 to-sky-600",
+                colorTheme === "indigo" && "border-indigo-300/60 bg-gradient-to-br from-indigo-500 to-indigo-600",
+                colorTheme === "green" && "border-green-300/60 bg-gradient-to-br from-green-500 to-green-600"
+              )}
+            >
+              <motion.p initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="text-xs sm:text-sm font-bold uppercase tracking-[0.24em] text-center">
+                {title} {monthLabel(monthCursor)}
+              </motion.p>
+              <motion.p
+                key={activeMonthKey}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
                 className={cn(
-                  "flex-1 min-w-0 bg-white dark:bg-slate-800 dark:border-slate-700 text-neutral-900 dark:text-slate-100 border focus:ring-2 focus:ring-offset-0 text-sm sm:text-base",
-                  colorTheme === "pink" && "border-pink-200 dark:border-pink-800/50 dark:focus:ring-pink-500/50",
-                  colorTheme === "sky" && "border-sky-200 dark:border-sky-800/50 dark:focus:ring-sky-500/50",
-                  colorTheme === "indigo" && "border-indigo-200 dark:border-indigo-800/50 dark:focus:ring-indigo-500/50",
-                  colorTheme === "green" && "border-green-200 dark:border-green-800/50 dark:focus:ring-green-500/50",
+                  "text-xl sm:text-2xl font-bold mt-1 text-center",
+                  "text-white"
                 )}
-              />
-              <Select value={sortBy ?? "__all__"} onValueChange={(val) => setSortBy(val === "__all__" ? null : val)}>
-                <SelectTrigger className={cn(
-                  "w-full sm:w-48 bg-white dark:bg-slate-800 dark:border-slate-700 text-neutral-900 dark:text-slate-100 border text-sm sm:text-base",
-                  colorTheme === "pink" && "border-pink-200 dark:border-pink-800/50",
-                  colorTheme === "sky" && "border-sky-200 dark:border-sky-800/50",
-                  colorTheme === "indigo" && "border-indigo-200 dark:border-indigo-800/50",
-                  colorTheme === "green" && "border-green-200 dark:border-green-800/50",
-                ) }
+              >
+                {formatCurrency(monthTotal)}
+              </motion.p>
+              <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-white/15" />
+              <div className="absolute -left-6 -bottom-10 h-20 w-20 rounded-full bg-white/10" />
+            </div>
+
+            <div
+              className={cn(
+                "rounded-3xl border p-3.5 sm:p-4 relative overflow-hidden shadow-sm",
+                themeStyles.calendarShell
+              )}
+            >
+              <div className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-white/45 blur-xl dark:bg-white/5" />
+              <div className="pointer-events-none absolute -left-8 -bottom-14 h-24 w-24 rounded-full bg-white/30 blur-xl dark:bg-white/5" />
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-center gap-2 sm:justify-start">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/80 shadow-sm dark:bg-slate-800/70">
+                    <CalendarDays className={cn("w-4 h-4", themeStyles.calendarTitle)} />
+                  </span>
+                  <p className={cn("font-semibold tracking-wide", themeStyles.calendarTitle)}>Kalender {title}</p>
+                </div>
+
+                <div className="flex w-full max-w-md self-center items-center gap-2 sm:max-w-none">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
+                    onClick={() => {
+                      setMonthDirection(-1);
+                      setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+                    }}
+                    aria-label="Bulan sebelumnya"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className={cn(
+                      "h-9 sm:h-10 flex-1 text-sm justify-center rounded-full border bg-white/70 dark:bg-slate-800/60 sm:text-base",
+                      themeStyles.monthButton
+                    )}
+                    onClick={openMonthPicker}
+                    aria-label="Buka pemilih bulan"
+                  >
+                    {monthLabel(monthCursor)}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
+                    onClick={() => {
+                      setMonthDirection(1);
+                      setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+                    }}
+                    aria-label="Bulan berikutnya"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className={cn("grid grid-cols-7 gap-1 sm:gap-1.5 text-center text-[10px] sm:text-xs font-semibold mb-2 mt-4", themeStyles.weekdayText)}>
+                {["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"].map((day) => (
+                  <div key={day} className="py-1">
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={activeMonthKey}
+                  initial={{ opacity: 0, x: monthDirection * 16 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: monthDirection * -16 }}
+                  transition={{ duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
+                  className="grid grid-cols-7 gap-1 sm:gap-1.5"
                 >
-                  <SelectValue placeholder="Kategori" />
+                  {cells.map((cell) => {
+                  const total = dayTotals.get(cell.date) ?? 0;
+                  const isToday = cell.date === todayStr;
+                  const isSelected = cell.date === selectedDate;
+                  const hasData = total > 0;
+
+                  return (
+                    <motion.button
+                      layout
+                      key={cell.date}
+                      type="button"
+                      onClick={() => openDayModal(cell.date)}
+                      className={cn(
+                        "relative min-h-[52px] sm:min-h-[60px] rounded-xl sm:rounded-2xl border p-1 sm:p-1.5 flex items-center justify-center transition-all duration-500 ease-out hover:shadow-md active:scale-[0.99]",
+                        cell.inCurrentMonth
+                          ? cn("bg-white dark:bg-slate-950/40", themeStyles.currentMonthBorder, themeStyles.currentMonthText)
+                          : "bg-neutral-100/70 text-neutral-400 border-neutral-200 dark:bg-slate-900/30 dark:text-slate-500 dark:border-slate-800",
+                        hasData && themeStyles.hasDataBorder,
+                        hasData && themeStyles.hasDataBg,
+                        colorTheme === "pink" && "hover:border-pink-300 hover:ring-2 hover:ring-pink-300/70",
+                        colorTheme === "sky" && "hover:border-sky-300 hover:ring-2 hover:ring-sky-300/70",
+                        colorTheme === "indigo" && "hover:border-indigo-300 hover:ring-2 hover:ring-indigo-300/70",
+                        colorTheme === "green" && "hover:border-green-300 hover:ring-2 hover:ring-green-300/70",
+                        isSelected && "shadow-md",
+                        isToday &&
+                          (colorTheme === "pink"
+                            ? "ring-2 ring-pink-400 border-pink-300"
+                            : colorTheme === "sky"
+                              ? "ring-2 ring-sky-400 border-sky-300"
+                              : colorTheme === "indigo"
+                                ? "ring-2 ring-indigo-400 border-indigo-300"
+                                : "ring-2 ring-green-400 border-green-300"),
+                        isSelected && themeStyles.cellSelected
+                      )}
+                      >
+                      <p className="text-[11px] sm:text-xs font-semibold">{cell.dayNumber}</p>
+                      {hasData && (
+                        <>
+                          <span className={cn("absolute top-1.5 right-1.5 inline-block h-1.5 w-1.5 rounded-full", themeStyles.hasDataDot)} />
+                        </>
+                      )}
+                    </motion.button>
+                  );
+                })}
+                </motion.div>
+              </AnimatePresence>
+              {/* <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-400 sm:hidden">
+                Titik berwarna menandakan ada transaksi. Tap tanggal untuk lihat detail.
+              </p> */}
+            </div>
+        </>
+
+        {loading && (
+          <div className="flex-1 flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-10 w-10 border-2 border-neutral-300 dark:border-slate-600 border-t-transparent" />
+          </div>
+        )}
+      </div>
+
+      <Dialog open={isDayModalOpen} onOpenChange={setIsDayModalOpen}>
+        <DialogContent
+          className={cn(
+            "w-[92vw] max-w-2xl p-4 md:p-5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border",
+            colorTheme === "pink" && "border-pink-200 dark:border-pink-900/50",
+            colorTheme === "sky" && "border-sky-200 dark:border-sky-900/50",
+            colorTheme === "indigo" && "border-indigo-200 dark:border-indigo-900/50",
+            colorTheme === "green" && "border-green-200 dark:border-green-900/50"
+          )}
+        >
+          <DialogHeader>
+            <DialogTitle>Detail {title}</DialogTitle>
+            <DialogDescription>
+              {selectedDate ? `${formatDateLabel(selectedDate)} • ${formatCurrency(selectedTotal)}` : "Pilih tanggal dari kalender"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="relative flex-1 min-w-0">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                <Input
+                  placeholder="Cari note atau kategori..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
+                  className="pl-9"
+                />
+              </div>
+              <Select
+                value={sortBy ?? "__all__"}
+                onValueChange={(val) => {
+                  setSortBy(val === "__all__" ? null : val);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-full sm:w-[170px]">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <ListFilter className="w-4 h-4 text-neutral-500" />
+                    <SelectValue placeholder="Kategori" />
+                  </div>
                 </SelectTrigger>
-                <SelectContent className={cn(
-                  "bg-white dark:bg-slate-800 dark:border-slate-700 border",
-                  colorTheme === "pink" && "border-pink-200 dark:border-pink-800/50",
-                  colorTheme === "sky" && "border-sky-200 dark:border-sky-800/50",
-                  colorTheme === "indigo" && "border-indigo-200 dark:border-indigo-800/50",
-                  colorTheme === "green" && "border-green-200 dark:border-green-800/50",
-                ) }
-                >
+                <SelectContent>
                   <SelectItem value="__all__">Semua</SelectItem>
                   {categories.map((cat) => (
                     <SelectItem key={cat} value={cat}>
@@ -250,170 +635,148 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                title="Tambah transaksi"
+                className={cn(
+                  "h-10 w-full sm:w-10 p-0 text-white",
+                  colorTheme === "pink" && "bg-pink-500 hover:bg-pink-600",
+                  colorTheme === "sky" && "bg-sky-500 hover:bg-sky-600",
+                  colorTheme === "indigo" && "bg-indigo-500 hover:bg-indigo-600",
+                  colorTheme === "green" && "bg-green-500 hover:bg-green-600"
+                )}
+                onClick={() => {
+                  setEditingInvoice(null);
+                  setFormData({
+                    date: selectedDate || todayStr,
+                    amount: "",
+                    note: "",
+                    category: "",
+                    tags: "",
+                  });
+                  setSelectedAccountId(null);
+                  setSelectedTargetId(null);
+                  setIsCustomCategory(false);
+                  setFormKey((prev) => prev + 1);
+                  setErrorMessage("");
+                  setIsDialogOpen(true);
+                }}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
             </div>
-            <Button 
-            onClick={() => {
-              setEditingInvoice(null);
-              setFormData({
-                date: new Date().toISOString().slice(0, 10),
-                amount: "",
-                note: "",
-                category: "",
-                tags: "",
-              });
-              setIsCustomCategory(false);
-              setFormKey((prev) => prev + 1);
-              setErrorMessage("");
-              setIsDialogOpen(true);
-            }}
-            className={cn(
-              "w-full sm:w-auto text-white rounded-lg shadow-lg hover:shadow-xl transition-all text-sm sm:text-base whitespace-nowrap",
-              colorTheme === "pink" && "bg-gradient-to-r from-pink-400 to-pink-500 hover:from-pink-500 hover:to-pink-600",
-              colorTheme === "sky" && "bg-gradient-to-r from-sky-400 to-sky-500 hover:from-sky-500 hover:to-sky-600",
-              colorTheme === "indigo" && "bg-gradient-to-r from-indigo-400 to-indigo-500 hover:from-indigo-500 hover:to-indigo-600",
-              colorTheme === "green" && "bg-gradient-to-r from-green-400 to-green-500 hover:from-green-500 hover:to-green-600",
-            ) }
-            >
-            + Tambah
-          </Button>
-        </div>
 
-        {/* Filter tanggal */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-neutral-600 dark:text-neutral-400 whitespace-nowrap">Tanggal:</span>
-          <Input
-            type="date"
-            placeholder="Dari"
-            value={dateFrom}
-            onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-            className={cn(
-              "w-full sm:w-40 bg-white dark:bg-slate-800 dark:border-slate-700 text-neutral-900 dark:text-slate-100 border text-sm",
-              colorTheme === "pink" && "border-pink-200 dark:border-pink-800/50",
-              colorTheme === "sky" && "border-sky-200 dark:border-sky-800/50",
-              colorTheme === "indigo" && "border-indigo-200 dark:border-indigo-800/50",
-              colorTheme === "green" && "border-green-200 dark:border-green-800/50",
-            )}
-          />
-          <span className="text-sm text-neutral-500 dark:text-neutral-500">–</span>
-          <Input
-            type="date"
-            placeholder="Sampai"
-            value={dateTo}
-            onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-            className={cn(
-              "w-full sm:w-40 bg-white dark:bg-slate-800 dark:border-slate-700 text-neutral-900 dark:text-slate-100 border text-sm",
-              colorTheme === "pink" && "border-pink-200 dark:border-pink-800/50",
-              colorTheme === "sky" && "border-sky-200 dark:border-sky-800/50",
-              colorTheme === "indigo" && "border-indigo-200 dark:border-indigo-800/50",
-              colorTheme === "green" && "border-green-200 dark:border-green-800/50",
-            )}
-          />
-          {(dateFrom || dateTo) && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
-              className="text-xs text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
-            >
-              Reset tanggal
-            </Button>
-          )}
-        </div>
-
-        {/* Filter kategori */}
-        <div className="flex flex-wrap gap-2 overflow-x-auto pb-2 -mx-1 px-1">
-          {categories.map((cat) => (
-            <Button
-              key={cat}
-              variant={sortBy === cat ? "default" : "outline"}
-              onClick={() => setSortBy(sortBy === cat ? null : cat)}
-              className={cn(
-                "rounded-full px-3 py-1 md:px-4 text-xs md:text-sm transition",
-                sortBy === cat
-                  ? cn(
-                      "text-white shadow-lg",
-                      colorTheme === "pink" && "bg-gradient-to-r from-pink-400 to-pink-500 hover:from-pink-500 hover:to-pink-600",
-                      colorTheme === "sky" && "bg-gradient-to-r from-sky-400 to-sky-500 hover:from-sky-500 hover:to-sky-600",
-                      colorTheme === "indigo" && "bg-gradient-to-r from-indigo-400 to-indigo-500 hover:from-indigo-500 hover:to-indigo-600",
-                      colorTheme === "green" && "bg-gradient-to-r from-green-400 to-green-500 hover:from-green-500 hover:to-green-600",
-                    )
-                  : cn(
-                      "dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:border-slate-600",
-                      colorTheme === "pink" && "border-pink-300 text-pink-500 hover:bg-pink-50 dark:text-pink-400 dark:border-pink-800/50",
-                      colorTheme === "sky" && "border-sky-300 text-sky-500 hover:bg-sky-50 dark:text-sky-400 dark:border-sky-800/50",
-                      colorTheme === "indigo" && "border-indigo-300 text-indigo-500 hover:bg-indigo-50 dark:text-indigo-400 dark:border-indigo-800/50",
-                      colorTheme === "green" && "border-green-300 text-green-500 hover:bg-green-50 dark:text-green-400 dark:border-green-800/50",
-                    )
-              ) }
-            >
-              {cat}
-            </Button>
-          ))}
-        </div>
-
-        {/* Loading */}
-        {loading && (
-          <div className="flex-1 flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-10 w-10 border-2 border-neutral-300 dark:border-slate-600 border-t-transparent" />
-          </div>
-        )}
-
-        {/* Tabel */}
-        {!loading && (
-          <div className="flex flex-col gap-4 flex-1">
-            <div className={cn("flex-1 overflow-x-auto overflow-y-auto rounded-2xl border bg-white/80 dark:bg-slate-900/90", colorTheme === "pink" && "border-pink-200 dark:border-pink-900/50", colorTheme === "sky" && "border-sky-200 dark:border-sky-900/50", colorTheme === "indigo" && "border-indigo-200 dark:border-indigo-900/50", colorTheme === "green" && "border-green-200 dark:border-green-900/50")}>
-              <table className="w-full text-xs sm:text-sm text-center min-w-[600px]">
-                <thead className={cn("bg-gradient-to-r dark:from-slate-800/60 dark:to-slate-800/60", colorTheme === "pink" && "from-pink-400/10 to-pink-400/10 text-pink-600", colorTheme === "sky" && "from-sky-400/10 to-sky-400/10 text-sky-600", colorTheme === "indigo" && "from-indigo-400/10 to-indigo-400/10 text-indigo-600", colorTheme === "green" && "from-green-400/10 to-green-400/10 text-green-600")}>
-                  <tr>
-                    <th className="px-2 sm:px-3 md:px-4 py-2 md:py-3 font-semibold">No</th>
-                    <th className="px-2 sm:px-3 md:px-4 py-2 md:py-3 font-semibold">Tanggal</th>
-                    <th className="px-2 sm:px-3 md:px-4 py-2 md:py-3 font-semibold">Nominal</th>
-                    <th className="px-2 sm:px-3 md:px-4 py-2 md:py-3 font-semibold hidden sm:table-cell">Keterangan</th>
-                    <th className="px-2 sm:px-3 md:px-4 py-2 md:py-3 font-semibold">Kategori</th>
-                    <th className="px-2 sm:px-3 md:px-4 py-2 md:py-3 font-semibold w-24">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginated.map((inv, idx) => (
-                    <tr key={inv.id} className={cn("border-t dark:border-slate-800", colorTheme === "pink" && "border-pink-100 hover:bg-pink-50/50", colorTheme === "sky" && "border-sky-100 hover:bg-sky-50/50", colorTheme === "indigo" && "border-indigo-100 hover:bg-indigo-50/50", colorTheme === "green" && "border-green-100 hover:bg-green-50/50")}>
-                      <td className="px-2 sm:px-3 md:px-4 py-2 md:py-3 text-neutral-700 dark:text-slate-200">{(page - 1) * perPage + idx + 1}</td>
-                      <td className="px-2 sm:px-3 md:px-4 py-2 md:py-3 text-neutral-700 dark:text-slate-200">{inv.date}</td>
-                      <td className={cn("px-2 sm:px-3 md:px-4 py-2 md:py-3 font-semibold", colorTheme === "pink" && "text-pink-600", colorTheme === "sky" && "text-sky-600", colorTheme === "indigo" && "text-indigo-600", colorTheme === "green" && "text-green-600")}>Rp {inv.amount.toLocaleString("id-ID")}</td>
-                      <td className="px-2 sm:px-3 md:px-4 py-2 md:py-3 text-neutral-700 dark:text-slate-200 hidden sm:table-cell">{inv.note}</td>
-                      <td className="px-2 sm:px-3 md:px-4 py-2 md:py-3"><span className={cn("px-2 py-1 rounded-full text-xs font-medium", colorTheme === "pink" && "bg-pink-100 text-pink-600", colorTheme === "sky" && "bg-sky-100 text-sky-600", colorTheme === "indigo" && "bg-indigo-100 text-indigo-600", colorTheme === "green" && "bg-green-100 text-green-600")}>{inv.category}</span></td>
-                      <td className="px-2 sm:px-3 md:px-4 py-2 md:py-3">
-                        <div className="flex items-center justify-center gap-1">
-                          <Button type="button" variant="ghost" size="sm" className="p-1.5 rounded-lg" onClick={() => openEditDialog(inv)} title="Edit"><Pencil className="w-4 h-4" /></Button>
-                          <Button type="button" variant="ghost" size="sm" className="p-1.5 rounded-lg text-red-600 hover:text-red-700" onClick={() => setDeleteConfirmId(inv.id)} title="Hapus"><Trash2 className="w-4 h-4" /></Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="max-h-[420px] overflow-auto space-y-2 pr-1">
+              {paginated.length === 0 ? (
+                <div className="text-sm text-neutral-500 text-center py-8">Belum ada transaksi pada tanggal ini.</div>
+              ) : (
+                <AnimatePresence initial={false}>
+                  {paginated.map((inv) => (
+                  <motion.div
+                    key={inv.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                    className="rounded-xl border border-neutral-200 dark:border-slate-700 p-3 flex items-start justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">{formatCurrency(inv.amount)}</p>
+                      <p className="text-xs text-neutral-600 dark:text-neutral-300">{inv.note}</p>
+                      <span className="inline-block mt-2 text-[11px] px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-700 dark:bg-slate-800 dark:text-slate-200">
+                        {inv.category}
+                      </span>
+                      {invoiceAccountMap[String(inv.id)] && (
+                        <span className="inline-block mt-2 ml-2 text-[11px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200">
+                          {accountNameMap.get(invoiceAccountMap[String(inv.id)]) ?? "Rekening"}
+                        </span>
+                      )}
+                      {inv.target_id && type === "pemasukkan" && (
+                        <span className="inline-block mt-2 ml-2 text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
+                          {targets.find((item) => item.id === inv.target_id)?.name ?? "Target"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button type="button" variant="ghost" size="sm" className="p-1.5 rounded-lg" onClick={() => openEditDialog(inv)} title="Edit">
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" className="p-1.5 rounded-lg text-red-600 hover:text-red-700" onClick={() => setDeleteConfirmId(inv.id)} title="Hapus">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </motion.div>
+                ))}
+                </AnimatePresence>
+              )}
             </div>
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
-              <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400">Halaman {page} dari {totalPages}</p>
+
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-neutral-500">Halaman {page} dari {totalPages}</p>
               <div className="flex gap-2">
-                <Button variant="outline" disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg text-sm">Prev</Button>
-                <Button variant="outline" disabled={page === totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg text-sm">Next</Button>
+                <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
+                  Prev
+                </Button>
+                <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>
+                  Next
+                </Button>
               </div>
             </div>
           </div>
-        )}
-      </div>
-      </div>
+        </DialogContent>
+      </Dialog>
 
-      {/* Dialog Konfirmasi Hapus */}
+      <Dialog open={isMonthPickerOpen} onOpenChange={setIsMonthPickerOpen}>
+        <DialogContent className="w-[92vw] max-w-xs p-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-neutral-200 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle>Pilih Bulan</DialogTitle>
+            <DialogDescription>Mode compact untuk pilih bulan dan tahun.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-2">
+            <Select value={String(draftMonth)} onValueChange={(val) => setDraftMonth(Number(val))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Bulan" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Januari</SelectItem>
+                <SelectItem value="2">Februari</SelectItem>
+                <SelectItem value="3">Maret</SelectItem>
+                <SelectItem value="4">April</SelectItem>
+                <SelectItem value="5">Mei</SelectItem>
+                <SelectItem value="6">Juni</SelectItem>
+                <SelectItem value="7">Juli</SelectItem>
+                <SelectItem value="8">Agustus</SelectItem>
+                <SelectItem value="9">September</SelectItem>
+                <SelectItem value="10">Oktober</SelectItem>
+                <SelectItem value="11">November</SelectItem>
+                <SelectItem value="12">Desember</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              type="number"
+              min={2000}
+              max={2100}
+              value={draftYear}
+              onChange={(e) => setDraftYear(Number(e.target.value))}
+              placeholder="Tahun"
+            />
+          </div>
+          <DialogFooter className="mt-2 gap-2">
+            <Button variant="outline" onClick={() => setIsMonthPickerOpen(false)}>
+              Batal
+            </Button>
+            <Button onClick={applyMonthPicker}>Terapkan</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={deleteConfirmId != null} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
         <DialogContent
           className={cn(
-            "bg-white dark:bg-slate-900 border max-w-sm mx-4 sm:mx-auto",
+            "w-[92vw] max-w-sm bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border",
             colorTheme === "pink" && "border-pink-200 dark:border-pink-900/50",
             colorTheme === "sky" && "border-sky-200 dark:border-sky-900/50",
             colorTheme === "indigo" && "border-indigo-200 dark:border-indigo-900/50",
-            colorTheme === "green" && "border-green-200 dark:border-green-900/50",
+            colorTheme === "green" && "border-green-200 dark:border-green-900/50"
           )}
         >
           <DialogHeader>
@@ -421,8 +784,12 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
             <DialogDescription className="text-neutral-600 dark:text-slate-400">Transaksi yang dihapus tidak bisa dikembalikan.</DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-4 gap-2">
-            <Button variant="outline" onClick={() => setDeleteConfirmId(null)} className="rounded-lg">Batal</Button>
-            <Button variant="destructive" className="bg-red-500 hover:bg-red-600 text-white rounded-lg" onClick={handleDeleteConfirm}>Hapus</Button>
+            <Button variant="outline" onClick={() => setDeleteConfirmId(null)} className="rounded-lg">
+              Batal
+            </Button>
+            <Button variant="destructive" className="bg-red-500 hover:bg-red-600 text-white rounded-lg" onClick={handleDeleteConfirm}>
+              Hapus
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -438,6 +805,13 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
         errorMessage={errorMessage}
         submitting={submitting}
         categories={categories}
+        accounts={accounts}
+        selectedAccountId={selectedAccountId}
+        setSelectedAccountId={setSelectedAccountId}
+        targets={targets}
+        selectedTargetId={selectedTargetId}
+        setSelectedTargetId={setSelectedTargetId}
+        showTargetSelector={type === "pemasukkan"}
         colorTheme={colorTheme}
         isCustomCategory={isCustomCategory}
         setIsCustomCategory={setIsCustomCategory}

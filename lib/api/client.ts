@@ -1,4 +1,5 @@
 import { apiConfig } from "./config";
+import { getToken, logout } from "@/lib/auth";
 
 export class ApiError extends Error {
   constructor(
@@ -13,16 +14,17 @@ export class ApiError extends Error {
 
 type RequestConfig = RequestInit & {
   params?: Record<string, string | number | undefined>;
+  absolutePath?: boolean;
 };
 
-function buildUrl(path: string, params?: Record<string, string | number | undefined>): string {
-  const base = apiConfig.baseUrl.replace(/\/$/, "");
+function buildUrl(path: string, params?: Record<string, string | number | undefined>, absolutePath = false): string {
   const pathNorm = path.startsWith("/") ? path : `/${path}`;
-  const pathWithQuery = base + pathNorm;
+  const pathWithQuery = absolutePath ? pathNorm : apiConfig.baseUrl.replace(/\/$/, "") + pathNorm;
 
-  // Di browser baseUrl bisa relative (/api/proxy) → butuh origin agar URL valid
+  // Di browser, URL relative perlu origin agar valid.
+  const isHttpUrl = /^https?:\/\//i.test(pathWithQuery);
   const url =
-    typeof window !== "undefined" && !base.startsWith("http")
+    typeof window !== "undefined" && !isHttpUrl
       ? new URL(pathWithQuery, window.location.origin)
       : new URL(pathWithQuery);
 
@@ -64,8 +66,9 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 export async function apiRequest<T>(path: string, config: RequestConfig = {}): Promise<T> {
-  const { params, ...init } = config;
-  const url = buildUrl(path, params);
+  const { params, absolutePath, ...init } = config;
+  const url = buildUrl(path, params, absolutePath);
+  const token = typeof window !== "undefined" ? getToken() : null;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), apiConfig.timeout);
@@ -75,12 +78,17 @@ export async function apiRequest<T>(path: string, config: RequestConfig = {}): P
       ...init,
       headers: {
         ...apiConfig.headers,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...init.headers,
       },
       signal: controller.signal,
     });
-    return handleResponse<T>(res);
+    const data = await handleResponse<T>(res);
+    return data;
   } catch (err) {
+    if (err instanceof ApiError && err.status === 401 && typeof window !== "undefined") {
+      logout();
+    }
     if (err instanceof ApiError) throw err;
     if (err instanceof Error) {
       if (err.name === "AbortError") {
@@ -106,3 +114,4 @@ export const api = {
 
   delete: <T>(path: string) => apiRequest<T>(path, { method: "DELETE" }),
 };
+

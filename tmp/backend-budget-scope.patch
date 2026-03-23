@@ -1,0 +1,277 @@
+diff --git a/internal/domain/budget.go b/internal/domain/budget.go
+index 12553f2..d8771a8 100644
+--- a/internal/domain/budget.go
++++ b/internal/domain/budget.go
+@@ -8,10 +8,11 @@ import (
+ 
+ type CategoryBudget struct {
+ 	ID        uint           `json:"id" gorm:"primaryKey"`
+-	UserID    uint           `json:"user_id" gorm:"not null;index:idx_user_category,unique"`
+-	Category  string         `json:"category" gorm:"not null;index:idx_user_category,unique"`
++	UserID    uint           `json:"user_id" gorm:"not null;index:idx_user_category_scope,unique"`
++	Category  string         `json:"category" gorm:"not null;index:idx_user_category_scope,unique"`
+ 	Limit     float64        `json:"limit" gorm:"not null"`
++	Scope     string         `json:"scope" gorm:"type:varchar(16);not null;default:monthly;index:idx_user_category_scope,unique"`
+ 	CreatedAt time.Time      `json:"created_at"`
+ 	UpdatedAt time.Time      `json:"updated_at"`
+ 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
+ }
+diff --git a/internal/dto/budget_dto.go b/internal/dto/budget_dto.go
+index 676fe12..e502dd2 100644
+--- a/internal/dto/budget_dto.go
++++ b/internal/dto/budget_dto.go
+@@ -4,9 +4,11 @@ type BudgetResponse struct {
+ 	ID       uint    `json:"id"`
+ 	Category string  `json:"category"`
+ 	Limit    float64 `json:"limit"`
++	Scope    string  `json:"scope"`
+ }
+ 
+ type UpsertBudgetRequest struct {
+ 	Category string  `json:"category"`
+ 	Limit    float64 `json:"limit"`
++	Scope    string  `json:"scope"`
+ }
+diff --git a/internal/handler/budget_handler.go b/internal/handler/budget_handler.go
+index 46a7f69..e90d9c2 100644
+--- a/internal/handler/budget_handler.go
++++ b/internal/handler/budget_handler.go
+@@ -29,7 +29,8 @@ func (h *BudgetHandler) List(c echo.Context) error {
+ 		return c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "Unauthorized"})
+ 	}
+ 
+-	rows, err := h.service.ListByUser(userID)
++	scope := c.QueryParam("scope")
++	rows, err := h.service.ListByUser(userID, scope)
+ 	if err != nil {
+ 		return c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to fetch budgets"})
+ 	}
+@@ -40,10 +41,12 @@ func (h *BudgetHandler) List(c echo.Context) error {
+ 			ID:       row.ID,
+ 			Category: row.Category,
+ 			Limit:    row.Limit,
++			Scope:    row.Scope,
+ 		}
+ 	}
+ 
+ 	return c.JSON(http.StatusOK, result)
+ }
+@@ -57,13 +60,14 @@ func (h *BudgetHandler) Upsert(c echo.Context) error {
+ 		return c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Invalid request body"})
+ 	}
+ 
+-	item, err := h.service.Upsert(userID, req.Category, req.Limit)
++	item, err := h.service.Upsert(userID, req.Category, req.Limit, req.Scope)
+ 	if err != nil {
+ 		return c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+ 	}
+ 
+ 	return c.JSON(http.StatusOK, dto.BudgetResponse{
+ 		ID:       item.ID,
+ 		Category: item.Category,
+ 		Limit:    item.Limit,
++		Scope:    item.Scope,
+ 	})
+ }
+@@ -85,10 +89,11 @@ func (h *BudgetHandler) Delete(c echo.Context) error {
+ 		return c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Invalid category path"})
+ 	}
+ 
+-	if err := h.service.Delete(userID, category); err != nil {
++	scope := c.QueryParam("scope")
++	if err := h.service.Delete(userID, category, scope); err != nil {
+ 		return c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+ 	}
+ 
+ 	return c.JSON(http.StatusOK, dto.MessageResponse{Message: "Budget deleted successfully"})
+ }
+diff --git a/internal/repository/budget_repository.go b/internal/repository/budget_repository.go
+index 3697f06..8690e1a 100644
+--- a/internal/repository/budget_repository.go
++++ b/internal/repository/budget_repository.go
+@@ -7,10 +7,10 @@ import (
+ )
+ 
+ type BudgetRepository interface {
+-	ListByUser(userID uint) ([]domain.CategoryBudget, error)
+-	GetByUserAndCategory(userID uint, category string) (*domain.CategoryBudget, error)
++	ListByUser(userID uint, scope string) ([]domain.CategoryBudget, error)
++	GetByUserAndCategory(userID uint, category string, scope string) (*domain.CategoryBudget, error)
+ 	Upsert(item *domain.CategoryBudget) error
+-	DeleteByUserAndCategory(userID uint, category string) error
++	DeleteByUserAndCategory(userID uint, category string, scope string) error
+ }
+@@ -21,18 +21,18 @@ func NewBudgetRepository(db *gorm.DB) BudgetRepository {
+ 	return &budgetRepository{db: db}
+ }
+ 
+-func (r *budgetRepository) ListByUser(userID uint) ([]domain.CategoryBudget, error) {
++func (r *budgetRepository) ListByUser(userID uint, scope string) ([]domain.CategoryBudget, error) {
+ 	var rows []domain.CategoryBudget
+-	err := r.db.Where("user_id = ?", userID).Order("category ASC").Find(&rows).Error
++	err := r.db.Where("user_id = ? AND scope = ?", userID, scope).Order("category ASC").Find(&rows).Error
+ 	return rows, err
+ }
+ 
+-func (r *budgetRepository) GetByUserAndCategory(userID uint, category string) (*domain.CategoryBudget, error) {
++func (r *budgetRepository) GetByUserAndCategory(userID uint, category string, scope string) (*domain.CategoryBudget, error) {
+ 	var item domain.CategoryBudget
+-	if err := r.db.Where("user_id = ? AND category = ?", userID, category).First(&item).Error; err != nil {
++	if err := r.db.Where("user_id = ? AND category = ? AND scope = ?", userID, category, scope).First(&item).Error; err != nil {
+ 		return nil, err
+ 	}
+ 	return &item, nil
+ }
+ 
+ func (r *budgetRepository) Upsert(item *domain.CategoryBudget) error {
+ 	var existing domain.CategoryBudget
+-	err := r.db.Where("user_id = ? AND category = ?", item.UserID, item.Category).First(&existing).Error
++	err := r.db.Where("user_id = ? AND category = ? AND scope = ?", item.UserID, item.Category, item.Scope).First(&existing).Error
+ 	if err == nil {
+ 		existing.Limit = item.Limit
+ 		return r.db.Save(&existing).Error
+@@ -48,6 +48,6 @@ func (r *budgetRepository) Upsert(item *domain.CategoryBudget) error {
+ 	return r.db.Create(item).Error
+ }
+ 
+-func (r *budgetRepository) DeleteByUserAndCategory(userID uint, category string) error {
+-	return r.db.Where("user_id = ? AND category = ?", userID, category).Delete(&domain.CategoryBudget{}).Error
++func (r *budgetRepository) DeleteByUserAndCategory(userID uint, category string, scope string) error {
++	return r.db.Where("user_id = ? AND category = ? AND scope = ?", userID, category, scope).Delete(&domain.CategoryBudget{}).Error
+ }
+diff --git a/internal/service/budget_service.go b/internal/service/budget_service.go
+index 1a8ff8c..8c0e53c 100644
+--- a/internal/service/budget_service.go
++++ b/internal/service/budget_service.go
+@@ -9,9 +9,10 @@ import (
+ )
+ 
+ type BudgetService interface {
+-	ListByUser(userID uint) ([]domain.CategoryBudget, error)
+-	Upsert(userID uint, category string, limit float64) (*domain.CategoryBudget, error)
+-	Delete(userID uint, category string) error
++	ListByUser(userID uint, scope string) ([]domain.CategoryBudget, error)
++	Upsert(userID uint, category string, limit float64, scope string) (*domain.CategoryBudget, error)
++	Delete(userID uint, category string, scope string) error
+ }
+@@ -25,12 +26,23 @@ func normalizeCategory(category string) string {
+ 	return strings.TrimSpace(category)
+ }
+ 
+-func (s *budgetService) ListByUser(userID uint) ([]domain.CategoryBudget, error) {
+-	return s.repo.ListByUser(userID)
++func normalizeScope(scope string) string {
++	scope = strings.TrimSpace(strings.ToLower(scope))
++	if scope == "" {
++		return "monthly"
++	}
++	return scope
+ }
+ 
+-func (s *budgetService) Upsert(userID uint, category string, limit float64) (*domain.CategoryBudget, error) {
++func (s *budgetService) ListByUser(userID uint, scope string) ([]domain.CategoryBudget, error) {
++	scope = normalizeScope(scope)
++	if scope != "monthly" && scope != "weekly" {
++		return nil, errors.New("scope tidak valid")
++	}
++	return s.repo.ListByUser(userID, scope)
++}
++ 
++func (s *budgetService) Upsert(userID uint, category string, limit float64, scope string) (*domain.CategoryBudget, error) {
+ 	if userID == 0 {
+ 		return nil, errors.New("invalid user")
+ 	}
+ 	category = normalizeCategory(category)
++	scope = normalizeScope(scope)
+ 	if category == "" {
+ 		return nil, errors.New("category tidak boleh kosong")
+ 	}
+@@ -40,6 +52,9 @@ func (s *budgetService) Upsert(userID uint, category string, limit float64) (*d
+ 	if limit <= 0 {
+ 		return nil, errors.New("limit harus lebih besar dari 0")
+ 	}
++	if scope != "monthly" && scope != "weekly" {
++		return nil, errors.New("scope tidak valid")
++	}
+ 
+ 	item := &domain.CategoryBudget{
+ 		UserID:   userID,
+ 		Category: category,
+ 		Limit:    limit,
++		Scope:    scope,
+ 	}
+ 	if err := s.repo.Upsert(item); err != nil {
+ 		return nil, err
+@@ -51,19 +66,24 @@ func (s *budgetService) Upsert(userID uint, category string, limit float64) (*d
+ 		return nil, err
+ 	}
+-	updated, err := s.repo.GetByUserAndCategory(userID, category)
++	updated, err := s.repo.GetByUserAndCategory(userID, category, scope)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+ 	return updated, nil
+ }
+ 
+-func (s *budgetService) Delete(userID uint, category string) error {
++func (s *budgetService) Delete(userID uint, category string, scope string) error {
+ 	if userID == 0 {
+ 		return errors.New("invalid user")
+ 	}
+ 	category = normalizeCategory(category)
++	scope = normalizeScope(scope)
+ 	if category == "" {
+ 		return errors.New("category tidak boleh kosong")
+ 	}
+-	return s.repo.DeleteByUserAndCategory(userID, category)
++	if scope != "monthly" && scope != "weekly" {
++		return errors.New("scope tidak valid")
++	}
++	return s.repo.DeleteByUserAndCategory(userID, category, scope)
+ }
+diff --git a/migrations/migrate.go b/migrations/migrate.go
+index fdf26a0..a122545 100644
+--- a/migrations/migrate.go
++++ b/migrations/migrate.go
+@@ -98,6 +98,28 @@ func DropCategoryBudgetsTable(db *gorm.DB) error {
+ 	return db.Migrator().DropTable(&domain.CategoryBudget{})
+ }
+ 
++func AlterCategoryBudgetsAddScope(db *gorm.DB) error {
++	if err := db.AutoMigrate(&domain.CategoryBudget{}); err != nil {
++		return err
++	}
++	if err := db.Model(&domain.CategoryBudget{}).Where("scope IS NULL OR scope = ''").Update("scope", "monthly").Error; err != nil {
++		return err
++	}
++	if db.Migrator().HasIndex(&domain.CategoryBudget{}, "idx_user_category") {
++		if err := db.Migrator().DropIndex(&domain.CategoryBudget{}, "idx_user_category"); err != nil {
++			return err
++		}
++	}
++	if !db.Migrator().HasIndex(&domain.CategoryBudget{}, "idx_user_category_scope") {
++		if err := db.Migrator().CreateIndex(&domain.CategoryBudget{}, "idx_user_category_scope"); err != nil {
++			return err
++		}
++	}
++	return nil
++}
++
++func RevertCategoryBudgetsAddScope(db *gorm.DB) error {
++	return nil
++}
++
+ // Migration represents a database migration
+ type Migration struct {
+ 	ID        string
+@@ -151,4 +173,10 @@ var MigrationsList = []Migration{
+ 		Up:        CreateCategoryBudgetsTable,
+ 		Down:      DropCategoryBudgetsTable,
+ 	},
++	{
++		ID:        "008_add_scope_to_category_budgets",
++		Timestamp: "20260322000000",
++		Up:        AlterCategoryBudgetsAddScope,
++		Down:      RevertCategoryBudgetsAddScope,
++	},
+ }

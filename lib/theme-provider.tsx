@@ -9,6 +9,7 @@ type ThemeContextType = {
   theme: Theme;
   colorTheme: ColorTheme;
   toggleTheme: () => void;
+  setTheme: (theme: Theme) => void;
   setColorTheme: (color: ColorTheme) => void;
 };
 
@@ -73,6 +74,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     updateTheme(newTheme);
   };
 
+  const setThemeValue = (newTheme: Theme) => {
+    setTheme(newTheme);
+    updateTheme(newTheme);
+  };
+
   const setColorTheme = (color: ColorTheme) => {
     setColorThemeState(color);
     updateColorTheme(color);
@@ -80,7 +86,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   // Always provide context, even before mounting
   return (
-    <ThemeContext.Provider value={{ theme, colorTheme, toggleTheme, setColorTheme }}>
+    <ThemeContext.Provider value={{ theme, colorTheme, toggleTheme, setTheme: setThemeValue, setColorTheme }}>
       {children}
     </ThemeContext.Provider>
   );

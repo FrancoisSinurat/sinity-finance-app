@@ -9,6 +9,8 @@ import { useTheme } from "@/lib/theme-provider";
 import { Moon, Sun } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
+import { authService } from "@/lib/api";
+import { setToken } from "@/lib/auth";
 
 export default function RegisterCard() {
   const [loading, setLoading] = useState(false);
@@ -31,43 +33,24 @@ export default function RegisterCard() {
     setMessage("");
 
     if (formData.password !== formData.confirmPassword) {
-      setMessage("❌ Password dan konfirmasi tidak sama");
+      setMessage("Password dan konfirmasi tidak sama");
       setLoading(false);
       return;
     }
 
     try {
-      const res = await fetch("http://localhost:4000/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          password: formData.password,
-        }),
+      const result = await authService.register({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
       });
-
-      const data = await res.json();
-      if (res.ok) {
-        localStorage.setItem("token", data.token);
-        setMessage("✅ Register berhasil!");
-        setTimeout(() => {
-          window.location.href = "/dashboard";
-        }, 500);
-      } else {
-        setMessage("❌ " + (data.error || "Gagal register"));
-      }
-    } catch {
-      // Mock register untuk development - bisa masuk tanpa backend
-      if (formData.name && formData.email && formData.password) {
-        localStorage.setItem("token", "mock-token-" + Date.now());
-        setMessage("✅ Register berhasil! (Mock mode)");
-        setTimeout(() => {
-          window.location.href = "/dashboard";
-        }, 500);
-      } else {
-        setMessage("⚠️ Server error - Coba isi semua field untuk mock register");
-      }
+      setToken(result.token);
+      setMessage(result.message ?? "Register berhasil.");
+      setTimeout(() => {
+        window.location.href = "/dashboard";
+      }, 400);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Gagal register");
     } finally {
       setLoading(false);
     }
@@ -345,9 +328,9 @@ export default function RegisterCard() {
                 animate={{ opacity: 1, y: 0 }}
                 className={cn(
                   "mt-4 p-3 rounded-2xl text-sm text-center",
-                  message.includes("✅") && "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400",
-                  message.includes("❌") && "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400",
-                  !message.includes("✅") && !message.includes("❌") && "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400",
+                  message.toLowerCase().includes("berhasil")
+                    ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400"
+                    : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400",
                 )}
               >
                 {message}

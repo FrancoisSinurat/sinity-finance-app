@@ -5,17 +5,17 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   ScrollText,
-  User,
   Settings,
   LogOut,
+  Wallet,
+  Landmark,
+  BarChart3,
+  Target,
   PanelRightOpen,
   PanelRightClose,
   ChevronDown,
   ChevronRight,
-  Moon,
-  Sun,
   Menu,
-  MessageCircle,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -27,9 +27,8 @@ import {
 } from "@/components/ui/sheet";
 import { usePathname } from "next/navigation";
 import { useTheme } from "@/lib/theme-provider";
-import { logout } from "@/lib/auth";
-import { Logo } from "@/components/Logo";
-import { getThemeColor } from "@/lib/theme-utils";
+import { profileService, ApiError } from "@/lib/api";
+import { getTokenPayload, logout } from "@/lib/auth";
 
 const menuItems = [
   { name: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
@@ -41,16 +40,131 @@ const menuItems = [
       { name: "Pengeluaran", href: "/invoices/pengeluaran" },
     ],
   },
-  { name: "AI Assistant", icon: MessageCircle, href: "/assistant" },
-  { name: "Profile", icon: User, href: "/profile" },
+  { name: "Budget", icon: Wallet, href: "/budget" },
+  { name: "Target", icon: Target, href: "/goals" },
+  { name: "Rekening", icon: Landmark, href: "/accounts" },
+  { name: "Reports", icon: BarChart3, href: "/reports" },
   { name: "Settings", icon: Settings, href: "/settings" },
 ];
+
+type SidebarProfile = {
+  name: string;
+};
+
+function fallbackProfile(): SidebarProfile {
+  const payload = getTokenPayload();
+  return {
+    name: typeof payload?.name === "string" && payload.name.trim() ? payload.name : "Sinity User",
+  };
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean).slice(0, 2);
+  if (parts.length === 0) return "SN";
+  return parts.map((part) => part.charAt(0).toUpperCase()).join("");
+}
+
+function createAvatarDataUrl(name: string): string {
+  const initials = getInitials(name);
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#ffffff" />
+          <stop offset="100%" stop-color="#e5e7eb" />
+        </linearGradient>
+      </defs>
+      <circle cx="48" cy="48" r="48" fill="url(#g)" />
+      <text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" fill="#111827">${initials}</text>
+    </svg>
+  `.trim();
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
 
 export function AppSidebar() {
   const [collapsed, setCollapsed] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [hoverExpand, setHoverExpand] = React.useState(false);
+  const [profile, setProfile] = React.useState<SidebarProfile>(fallbackProfile());
   const { colorTheme } = useTheme();
+  const contentAreaRef = React.useRef<HTMLDivElement | null>(null);
+  const hoverExpandRef = React.useRef(false);
+
+  React.useEffect(() => {
+    let mounted = true;
+
+    const loadProfile = async () => {
+      try {
+        const data = await profileService.getMe();
+        if (!mounted) return;
+        setProfile({
+          name: data.name?.trim() || fallbackProfile().name,
+        });
+      } catch (error) {
+        if (!mounted) return;
+        if (error instanceof ApiError) {
+          setProfile(fallbackProfile());
+          return;
+        }
+        setProfile(fallbackProfile());
+      }
+    };
+
+    void loadProfile();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    hoverExpandRef.current = hoverExpand;
+  }, [hoverExpand]);
+
+  React.useEffect(() => {
+    if (!collapsed) {
+      if (hoverExpandRef.current) {
+        hoverExpandRef.current = false;
+        setHoverExpand(false);
+      }
+      return;
+    }
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const contentAreaEl = contentAreaRef.current;
+      if (!contentAreaEl) return;
+      const contentRect = contentAreaEl.getBoundingClientRect();
+
+      const withinHorizontal =
+        event.clientX >= contentRect.left &&
+        event.clientX <= contentRect.right;
+      const withinVertical =
+        event.clientY >= contentRect.top &&
+        event.clientY <= contentRect.bottom;
+      const shouldExpand = withinHorizontal && withinVertical;
+
+      if (shouldExpand !== hoverExpandRef.current) {
+        hoverExpandRef.current = shouldExpand;
+        setHoverExpand(shouldExpand);
+      }
+    };
+
+    const handleWindowLeave = () => {
+      if (hoverExpandRef.current) {
+        hoverExpandRef.current = false;
+        setHoverExpand(false);
+      }
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("blur", handleWindowLeave);
+    document.addEventListener("mouseleave", handleWindowLeave);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("blur", handleWindowLeave);
+      document.removeEventListener("mouseleave", handleWindowLeave);
+    };
+  }, [collapsed]);
 
   return (
     <>
@@ -105,7 +219,7 @@ export function AppSidebar() {
                 </SheetTitle>
               </div>
             </SheetHeader>
-            <SidebarContent collapsed={false} onItemClick={() => setMobileOpen(false)} />
+            <SidebarContent profile={profile} collapsed={false} onItemClick={() => setMobileOpen(false)} />
           </SheetContent>
         </Sheet>
       </div>
@@ -155,7 +269,6 @@ export function AppSidebar() {
               Sinity Finance
             </Link>
           )}
-          
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -195,32 +308,56 @@ export function AppSidebar() {
         </div>
 
         {/* Content */}
-        <div
-          className="flex-1 flex flex-col overflow-hidden"
-          onMouseEnter={() => {
-            if (collapsed) {
-              setHoverExpand(true);
-            }
-          }}
-          onMouseLeave={() => {
-            if (collapsed) {
-              setHoverExpand(false);
-            }
-          }}
-        >
-          <SidebarContent collapsed={collapsed && !hoverExpand} hoverExpand={hoverExpand} />
+        <div ref={contentAreaRef} className="flex-1 flex flex-col overflow-hidden">
+          <SidebarContent profile={profile} collapsed={collapsed && !hoverExpand} hoverExpand={hoverExpand} />
         </div>
       </div>
     </>
   );
 }
 
-function SidebarContent({ collapsed, onItemClick, hoverExpand }: { collapsed: boolean; onItemClick?: () => void; hoverExpand?: boolean }) {
+function SidebarProfileHeader({
+  profile,
+  compact = false,
+}: {
+  profile: SidebarProfile;
+  compact?: boolean;
+}) {
+  const avatarSrc = React.useMemo(() => createAvatarDataUrl(profile.name), [profile.name]);
+
+  if (compact) {
+    return (
+      <div className="flex items-center justify-center">
+        <img src={avatarSrc} alt={profile.name} className="h-10 w-10 rounded-full object-cover shadow-sm ring-1 ring-black/5 dark:ring-white/10" />
+      </div>
+    );
+  }
+
+  return (
+    <Link href="/profile" className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden hover:opacity-90 transition-opacity">
+      <img src={avatarSrc} alt={profile.name} className="h-11 w-11 rounded-full object-cover shadow-sm ring-1 ring-black/5 dark:ring-white/10" />
+      <div className="min-w-0">
+        <p className="truncate text-base font-semibold text-neutral-950 dark:text-white">{profile.name}</p>
+      </div>
+    </Link>
+  );
+}
+
+function SidebarContent({
+  profile,
+  collapsed,
+  onItemClick,
+  hoverExpand,
+}: {
+  profile: SidebarProfile;
+  collapsed: boolean;
+  onItemClick?: () => void;
+  hoverExpand?: boolean;
+}) {
   const pathname = usePathname();
   const [openMenu, setOpenMenu] = React.useState<string | null>(null);
-  const { theme, toggleTheme, colorTheme } = useTheme();
+  const { colorTheme } = useTheme();
   const isActuallyCollapsed = collapsed && !hoverExpand;
-  const themeColors = getThemeColor(colorTheme);
 
   // Auto-close submenu when sidebar collapses
   React.useEffect(() => {
@@ -232,7 +369,7 @@ function SidebarContent({ collapsed, onItemClick, hoverExpand }: { collapsed: bo
   return (
     <>
       <nav className={cn(
-        "relative flex-1 flex flex-col overflow-y-auto",
+        "relative flex-1 flex flex-col overflow-x-hidden overflow-y-auto",
         isActuallyCollapsed ? "gap-1 p-2" : "gap-2 p-4"
       )}>
         {menuItems.map((item) => {
@@ -587,68 +724,61 @@ function SidebarContent({ collapsed, onItemClick, hoverExpand }: { collapsed: bo
         })}
       </nav>
 
-      {/* Theme Toggle & Logout */}
+      {/* Profile & Logout */}
       <div className={cn(
-        "relative border-t dark:border-slate-800/50 bg-gradient-to-t dark:from-transparent to-transparent",
+        "relative overflow-hidden border-t dark:border-slate-800/50 bg-gradient-to-t dark:from-transparent to-transparent",
         colorTheme === "pink" && "border-pink-200/50 from-pink-500/5",
         colorTheme === "sky" && "border-sky-200/50 from-sky-500/5",
         colorTheme === "indigo" && "border-indigo-200/50 from-indigo-500/5",
         colorTheme === "green" && "border-green-200/50 from-green-500/5",
-        isActuallyCollapsed ? "p-2 space-y-1" : "p-4 space-y-2"
+        isActuallyCollapsed ? "p-2" : "p-4"
       )}>
-        {/* Theme Toggle */}
-        <button
-          onClick={toggleTheme}
-          className={cn(
-            "flex items-center w-full rounded-xl font-medium transition-colors duration-200 text-neutral-700 dark:text-slate-200 dark:hover:from-slate-800/50 dark:hover:to-slate-800/30 dark:hover:text-slate-300 hover:shadow-md group",
-            colorTheme === "pink" && "hover:bg-gradient-to-r hover:from-pink-50/80 hover:to-pink-50/80 hover:text-pink-600",
-            colorTheme === "sky" && "hover:bg-gradient-to-r hover:from-sky-50/80 hover:to-sky-50/80 hover:text-sky-600",
-            colorTheme === "indigo" && "hover:bg-gradient-to-r hover:from-indigo-50/80 hover:to-indigo-50/80 hover:text-indigo-600",
-            colorTheme === "green" && "hover:bg-gradient-to-r hover:from-green-50/80 hover:to-green-50/80 hover:text-green-600",
-            isActuallyCollapsed ? "justify-center px-2 py-2.5" : "gap-3 px-4 py-3"
-          )}
-        >
-          <div className={cn(
-            "rounded-lg dark:bg-slate-800/60 dark:text-slate-200 dark:group-hover:bg-slate-800/80 transition-colors",
-            colorTheme === "pink" && "bg-pink-100/50 text-pink-600 group-hover:bg-pink-200/70",
-            colorTheme === "sky" && "bg-sky-100/50 text-sky-600 group-hover:bg-sky-200/70",
-            colorTheme === "indigo" && "bg-indigo-100/50 text-indigo-600 group-hover:bg-indigo-200/70",
-            colorTheme === "green" && "bg-green-100/50 text-green-600 group-hover:bg-green-200/70",
-            isActuallyCollapsed ? "p-2" : "p-1.5"
-          )}>
-            {theme === "light" ? (
-              <Moon size={isActuallyCollapsed ? 20 : 18} />
-            ) : (
-              <Sun size={isActuallyCollapsed ? 20 : 18} />
+        {isActuallyCollapsed ? (
+          <div className="flex flex-col items-center gap-2">
+            <Link
+              href="/profile"
+              className={cn(
+                "flex h-12 w-12 items-center justify-center rounded-2xl border bg-white/60 shadow-sm transition-colors duration-200 dark:bg-slate-900/60 dark:border-slate-800/70",
+                colorTheme === "pink" && "border-pink-200/50 hover:bg-pink-50/80",
+                colorTheme === "sky" && "border-sky-200/50 hover:bg-sky-50/80",
+                colorTheme === "indigo" && "border-indigo-200/50 hover:bg-indigo-50/80",
+                colorTheme === "green" && "border-green-200/50 hover:bg-green-50/80",
+              )}
+              title={profile.name}
+              aria-label={profile.name}
+            >
+              <SidebarProfileHeader profile={profile} compact />
+            </Link>
+            <button
+              onClick={logout}
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-red-200/60 bg-white/55 text-red-600 shadow-sm transition-colors duration-200 hover:bg-red-50/70 dark:border-red-900/30 dark:bg-slate-900/60 dark:text-red-400 dark:hover:bg-red-900/20"
+              title="Logout"
+              aria-label="Logout"
+            >
+              <LogOut size={20} />
+            </button>
+          </div>
+        ) : (
+          <div
+            className={cn(
+              "flex items-center gap-3 rounded-2xl border bg-white/45 px-3 py-3 shadow-sm dark:bg-slate-900/45 dark:border-slate-800/70",
+              colorTheme === "pink" && "border-pink-200/50",
+              colorTheme === "sky" && "border-sky-200/50",
+              colorTheme === "indigo" && "border-indigo-200/50",
+              colorTheme === "green" && "border-green-200/50",
             )}
+          >
+            <SidebarProfileHeader profile={profile} />
+            <button
+              onClick={logout}
+              className="ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-200/60 bg-white/70 text-red-600 transition-colors duration-200 hover:bg-red-50/70 dark:border-red-900/30 dark:bg-slate-900/70 dark:text-red-400 dark:hover:bg-red-900/20"
+              title="Logout"
+              aria-label="Logout"
+            >
+              <LogOut size={18} />
+            </button>
           </div>
-          {!isActuallyCollapsed && (
-            <span className="overflow-hidden">
-              {theme === "light" ? "Dark Mode" : "Light Mode"}
-            </span>
-          )}
-        </button>
-
-        {/* Logout */}
-        <button
-          onClick={logout}
-          className={cn(
-            "flex items-center w-full rounded-xl font-medium transition-colors duration-200 text-red-600 dark:text-red-400 hover:bg-red-50/70 dark:hover:bg-red-900/20 hover:shadow-md group",
-            isActuallyCollapsed ? "justify-center px-2 py-2.5" : "gap-3 px-4 py-3"
-          )}
-        >
-          <div className={cn(
-            "rounded-lg bg-red-100/50 dark:bg-red-900/20 text-red-600 dark:text-red-400 group-hover:bg-red-200/70 dark:group-hover:bg-red-900/40 transition-colors",
-            isActuallyCollapsed ? "p-2" : "p-1.5"
-          )}>
-            <LogOut size={isActuallyCollapsed ? 20 : 18} />
-          </div>
-          {!isActuallyCollapsed && (
-            <span className="overflow-hidden">
-              Logout
-            </span>
-          )}
-        </button>
+        )}
       </div>
     </>
   );

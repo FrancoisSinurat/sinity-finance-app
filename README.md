@@ -68,6 +68,10 @@ Halaman Pemasukkan/Pengeluaran memanggil **sinity-finance-backend** lewat proxy 
 2. Di **sinity-finance-app** pastikan `.env` berisi:
    ```env
    NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
+   # Optional, jika auth service beda host:
+   # AUTH_API_BASE_URL=http://127.0.0.1:8080
+   # Optional, fallback login/register ke mock mode kalau backend auth down:
+   # NEXT_PUBLIC_AUTH_MOCK_ON_BACKEND_ERROR=true
    ```
    (atau `http://localhost:8080`). Restart `npm run dev` setelah mengubah `.env`.
 3. Jika muncul "Backend tidak merespons...", cek: backend sudah jalan di 8080 dan database (PostgreSQL) sudah siap.

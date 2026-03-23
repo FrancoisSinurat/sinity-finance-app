@@ -24,30 +24,50 @@ function getListFromResponse(res: unknown): unknown[] {
 }
 
 /** Map backend item (snake_case or nested) ke bentuk Invoice. */
-function mapToInvoice(raw: unknown): Invoice {
+function normalizeInvoiceType(rawType: unknown, fallback?: Invoice["type"]): Invoice["type"] {
+  if (typeof rawType === "string") {
+    const val = rawType.trim().toLowerCase();
+    if (val === "pemasukkan" || val === "income") return "pemasukkan";
+    if (val === "pengeluaran" || val === "expense") return "pengeluaran";
+  }
+  if (typeof rawType === "number") {
+    // Defensive mapping when backend sends enum-ish number.
+    if (rawType === 1) return "pemasukkan";
+    if (rawType === 2) return "pengeluaran";
+  }
+  return fallback ?? "pemasukkan";
+}
+
+function mapToInvoice(raw: unknown, fallbackType?: Invoice["type"]): Invoice {
   const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const nestedType =
+    ((o.type as Record<string, unknown> | undefined)?.name as unknown) ??
+    ((o.type as Record<string, unknown> | undefined)?.type as unknown);
+  const typeFromResponse = o.type ?? o.type_name ?? nestedType;
+
   return {
     id: Number(o.id) || 0,
     date: String(o.date ?? ""),
     amount: Number(o.amount) ?? 0,
     note: String(o.note ?? ""),
     category: String(o.category ?? (o as Record<string, unknown>).category_name ?? ""),
-    type: (o.type === "pemasukkan" || o.type === "pengeluaran" ? o.type : "pemasukkan") as Invoice["type"],
+    type: normalizeInvoiceType(typeFromResponse, fallbackType),
+    target_id: o.target_id != null ? String(o.target_id) : null,
     created_at: o.created_at != null ? String(o.created_at) : undefined,
     updated_at: o.updated_at != null ? String(o.updated_at) : undefined,
   };
 }
 
-function normalizeListResponse(res: InvoicesListResponse | unknown): Invoice[] {
+function normalizeListResponse(res: InvoicesListResponse | unknown, fallbackType?: Invoice["type"]): Invoice[] {
   const list = getListFromResponse(res);
-  return list.map(mapToInvoice);
+  return list.map((item) => mapToInvoice(item, fallbackType));
 }
 
 export const invoicesService = {
   async getAll(query?: InvoicesQuery): Promise<Invoice[]> {
     const params: Record<string, string | number | undefined> = {};
     if (query?.page != null) params.page = query.page;
-    if (query?.per_page != null) params.per_page = query.per_page;
+    params.per_page = query?.per_page ?? 1000;
     if (query?.type) params.type = query.type;
     if (query?.category) params.category = query.category;
     if (query?.search) params.search = query.search;
@@ -55,7 +75,7 @@ export const invoicesService = {
     if (query?.order) params.order = query.order;
 
     const res = await api.get<InvoicesListResponse | unknown>(PATH, Object.keys(params).length ? params : undefined);
-    return normalizeListResponse(res);
+    return normalizeListResponse(res, query?.type);
   },
 
   async getById(id: number): Promise<Invoice> {

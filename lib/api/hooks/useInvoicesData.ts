@@ -16,8 +16,9 @@ interface UseInvoicesDataResult {
     amount: number;
     note: string;
     category: string;
+    target_id?: number;
   }) => Promise<Invoice | null>;
-  updateInvoice: (id: number, payload: { date?: string; amount?: number; note?: string; category?: string }) => Promise<Invoice | null>;
+  updateInvoice: (id: number, payload: { date?: string; amount?: number; note?: string; category?: string; target_id?: number }) => Promise<Invoice | null>;
   deleteInvoice: (id: number) => Promise<boolean>;
 }
 
@@ -66,7 +67,7 @@ export function useInvoicesData(type: InvoiceType): UseInvoicesDataResult {
   }, [fetchData]);
 
   const createInvoice = useCallback(
-    async (payload: { date: string; amount: number; note: string; category: string }) => {
+    async (payload: { date: string; amount: number; note: string; category: string; target_id?: number }) => {
       setError(null);
       try {
         const created = await invoicesService.create({
@@ -85,7 +86,7 @@ export function useInvoicesData(type: InvoiceType): UseInvoicesDataResult {
   );
 
   const updateInvoice = useCallback(
-    async (id: number, payload: { date?: string; amount?: number; note?: string; category?: string }) => {
+    async (id: number, payload: { date?: string; amount?: number; note?: string; category?: string; target_id?: number }) => {
       setError(null);
       try {
         const updated = await invoicesService.update(id, payload);

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { Invoice } from "@/lib/types";
+import { getJakartaToday } from "@/lib/date-time";
 
 let INVOICES: Invoice[] = [
   { id: "1", title: "Belanja Bulanan", amount: 1200000, date: "2025-08-01", status: "Lunas", by: "aku" },
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
     id,
     title: body.title ?? "Tanpa Judul",
     amount: Number(body.amount ?? 0),
-    date: body.date ?? new Date().toISOString().slice(0, 10),
+    date: body.date ?? getJakartaToday(),
     status: (body.status as Invoice["status"]) ?? "Belum Bayar",
     by: (body.by as Invoice["by"]) ?? "aku",
   };

@@ -9,6 +9,8 @@ import { useTheme } from "@/lib/theme-provider";
 import { Moon, Sun } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
+import { authService } from "@/lib/api";
+import { setToken } from "@/lib/auth";
 
 export default function LoginCard() {
   const [loading, setLoading] = useState(false);
@@ -29,33 +31,14 @@ export default function LoginCard() {
     setMessage("");
 
     try {
-      const res = await fetch("http://localhost:4000/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        localStorage.setItem("token", data.token);
-        setMessage("✅ Login berhasil!");
-        setTimeout(() => {
-          window.location.href = "/dashboard";
-        }, 500);
-      } else {
-        setMessage("❌ " + (data.error || "Gagal login"));
-      }
-    } catch {
-      // Mock login untuk development - bisa masuk tanpa backend
-      if (formData.email && formData.password) {
-        localStorage.setItem("token", "mock-token-" + Date.now());
-        setMessage("✅ Login berhasil! (Mock mode)");
-        setTimeout(() => {
-          window.location.href = "/dashboard";
-        }, 500);
-      } else {
-        setMessage("⚠️ Server error - Coba isi email & password untuk mock login");
-      }
+      const result = await authService.login(formData);
+      setToken(result.token);
+      setMessage(result.message ?? "Login berhasil.");
+      setTimeout(() => {
+        window.location.href = "/dashboard";
+      }, 400);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Gagal login");
     } finally {
       setLoading(false);
     }
@@ -135,9 +118,7 @@ export default function LoginCard() {
             )}>
               Sinity Finance
             </h1>
-            <p className="text-lg text-neutral-600 dark:text-neutral-400 max-w-md">
-              Kelola keuanganmu dengan mudah dan efisien.
-            </p>
+            
           </div>
         </motion.div>
 
@@ -167,9 +148,6 @@ export default function LoginCard() {
                 Sinity Finance
               </h1>
             </motion.div>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              Yuk, masuk dan kelola keuanganmu ✨
-            </p>
           </div>
 
           {/* Card - soft, rounded, modern */}
@@ -282,9 +260,9 @@ export default function LoginCard() {
                 animate={{ opacity: 1, y: 0 }}
                 className={cn(
                   "mt-4 p-3 rounded-2xl text-sm text-center",
-                  message.includes("✅") && "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400",
-                  message.includes("❌") && "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400",
-                  !message.includes("✅") && !message.includes("❌") && "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400",
+                  message.toLowerCase().includes("berhasil")
+                    ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400"
+                    : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400",
                 )}
               >
                 {message}
