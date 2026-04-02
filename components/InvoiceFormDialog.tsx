@@ -136,10 +136,7 @@ export function InvoiceFormDialog({
           <DialogHeader className="space-y-2 text-left">
             <DialogTitle className="pr-8 text-[1.05rem] font-semibold tracking-tight text-neutral-950 dark:text-white md:text-[1.08rem]">
               {isEditMode ? "Edit" : "Tambah"} {title}
-            </DialogTitle>
-            <DialogDescription className="text-[13px] leading-5 text-neutral-500 dark:text-slate-400">
-              Fokus ke informasi penting supaya input lebih cepat dan nyaman.
-            </DialogDescription>
+            </DialogTitle>  
           </DialogHeader>
         </div>
 

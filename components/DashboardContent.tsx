@@ -271,7 +271,6 @@ export default function DashboardContent() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-neutral-950 dark:text-white">Insight Kategori</p>
-              <p className="mt-1 text-xs text-neutral-500 dark:text-slate-400">Pilih konteks untuk lihat komposisi transaksi.</p>
             </div>
 
             <div className={cn("inline-flex rounded-full border p-1", themeStyles.soft, themeStyles.shell)}>
@@ -412,7 +411,6 @@ export default function DashboardContent() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-neutral-950 dark:text-white">Target & Wishlist</p>
-                  <p className="mt-1 text-xs text-neutral-500 dark:text-slate-400">Ringkas, tetap fokus.</p>
                 </div>
                 <Link href="/goals" className={cn("inline-flex h-9 items-center rounded-full px-4 text-sm font-medium transition", themeStyles.accentBg)}>
                   Buka
@@ -557,7 +555,6 @@ export default function DashboardContent() {
                 </span>
                 <div>
                   <p className="text-sm font-semibold text-neutral-950 dark:text-white">Rekening</p>
-                  <p className="mt-1 text-xs text-neutral-500 dark:text-slate-400">Saldo akun utama.</p>
                 </div>
               </div>
 
