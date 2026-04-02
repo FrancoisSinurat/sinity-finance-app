@@ -1,22 +1,28 @@
 /**
- * API configuration.
- * In browser we use same-origin proxy to avoid CORS; server uses direct backend URL.
+ * API configuration for static export / PWA / Capacitor builds.
+ * Browser clients call public backend URLs directly.
  */
-const getBaseUrl = (): string => {
-  if (typeof window !== "undefined") {
-    return "/api/proxy";
-  }
-  return process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.API_BASE_URL ?? "http://localhost:8080";
-};
+const DEFAULT_API_BASE_URL = "http://localhost:8080";
 
 const normalizePath = (value: string): string => {
   const withLeadingSlash = value.startsWith("/") ? value : `/${value}`;
   return withLeadingSlash.replace(/\/+$/, "");
 };
 
-const getAuthProxyBase = (): string => {
-  const configured = process.env.NEXT_PUBLIC_AUTH_PROXY_BASE ?? "/api/auth";
-  return normalizePath(configured);
+const normalizeBaseUrl = (value: string): string => value.replace(/\/+$/, "");
+
+const joinUrl = (base: string, path: string): string => `${normalizeBaseUrl(base)}${normalizePath(path)}`;
+
+const getBaseUrl = (): string => {
+  return normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL);
+};
+
+const getAuthBaseUrl = (): string => {
+  return normalizeBaseUrl(
+    process.env.NEXT_PUBLIC_AUTH_API_BASE_URL ??
+      process.env.NEXT_PUBLIC_API_BASE_URL ??
+      DEFAULT_API_BASE_URL
+  );
 };
 
 const getBooleanEnv = (value: string | undefined, defaultValue: boolean): boolean => {
@@ -30,15 +36,11 @@ const getBooleanEnv = (value: string | undefined, defaultValue: boolean): boolea
 export const apiConfig = {
   baseUrl: getBaseUrl(),
   auth: {
-    proxyBase: getAuthProxyBase(),
     mockOnBackendError: getBooleanEnv(process.env.NEXT_PUBLIC_AUTH_MOCK_ON_BACKEND_ERROR, true),
-    get loginPath() {
-      return `${this.proxyBase}/login`;
-    },
-    get registerPath() {
-      return `${this.proxyBase}/register`;
-    },
+    loginUrl: joinUrl(getAuthBaseUrl(), process.env.NEXT_PUBLIC_AUTH_LOGIN_PATH ?? "/api/v1/auth/login"),
+    registerUrl: joinUrl(getAuthBaseUrl(), process.env.NEXT_PUBLIC_AUTH_REGISTER_PATH ?? "/api/v1/auth/register"),
   },
+  chatUrl: process.env.NEXT_PUBLIC_CHAT_API_URL ?? "",
   timeout: 15_000,
   headers: {
     "Content-Type": "application/json",

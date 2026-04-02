@@ -10,6 +10,11 @@ import { cn } from "@/lib/utils";
 
 const publicRoutes = ["/login", "/register"];
 
+function normalizePathname(pathname: string): string {
+  if (pathname === "/") return pathname;
+  return pathname.replace(/\/+$/, "");
+}
+
 export function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -24,12 +29,13 @@ export function ProtectedLayout({ children }: { children: React.ReactNode }) {
     if (!mounted) return;
 
     const auth = isAuthenticated();
-    const isPublicRoute = publicRoutes.includes(pathname);
+    const normalizedPath = normalizePathname(pathname);
+    const isPublicRoute = publicRoutes.includes(normalizedPath);
 
     if (!auth && !isPublicRoute) {
-      router.push("/login");
+      router.replace("/login");
     } else if (auth && isPublicRoute) {
-      router.push("/dashboard");
+      router.replace("/dashboard");
     }
   }, [pathname, mounted, router]);
 
@@ -43,7 +49,8 @@ export function ProtectedLayout({ children }: { children: React.ReactNode }) {
   }
 
   const auth = isAuthenticated();
-  const isPublicRoute = publicRoutes.includes(pathname);
+  const normalizedPath = normalizePathname(pathname);
+  const isPublicRoute = publicRoutes.includes(normalizedPath);
 
   // Public routes (login, register) - no sidebar
   if (isPublicRoute) {

@@ -18,8 +18,9 @@ type RequestConfig = RequestInit & {
 };
 
 function buildUrl(path: string, params?: Record<string, string | number | undefined>, absolutePath = false): string {
-  const pathNorm = path.startsWith("/") ? path : `/${path}`;
-  const pathWithQuery = absolutePath ? pathNorm : apiConfig.baseUrl.replace(/\/$/, "") + pathNorm;
+  const isHttpPath = /^https?:\/\//i.test(path);
+  const pathNorm = isHttpPath || path.startsWith("/") ? path : `/${path}`;
+  const pathWithQuery = absolutePath || isHttpPath ? pathNorm : apiConfig.baseUrl.replace(/\/$/, "") + pathNorm;
 
   // Di browser, URL relative perlu origin agar valid.
   const isHttpUrl = /^https?:\/\//i.test(pathWithQuery);

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Sinity Finance icon">
+  <defs>
+    <linearGradient id="bg512" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#bg512)" />
+  <path d="M144 323c57-102 112-157 165-157 38 0 67 28 67 66 0 50-47 93-109 93h-50l-24 51h-49l33-53zm94-46h31c31 0 53-20 53-46 0-16-11-27-25-27-22 0-44 21-59 73z" fill="#f8fafc" />
+</svg>

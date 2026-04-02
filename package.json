@@ -6,12 +6,21 @@
     "dev": "node scripts/dev.js",
     "dev:no-turbopack": "node scripts/dev.js --no-turbopack",
     "build": "next build",
+    "build:web": "next build",
     "start": "node scripts/start.js",
     "lint": "next lint",
     "port": "node scripts/port-check.js",
-    "kill-port": "node scripts/kill-port.js"
+    "kill-port": "node scripts/kill-port.js",
+    "cap:sync": "npx cap sync",
+    "cap:add:android": "npx cap add android",
+    "cap:add:ios": "npx cap add ios",
+    "cap:open:android": "npx cap open android",
+    "cap:open:ios": "npx cap open ios"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/core": "^8.3.0",
+    "@capacitor/ios": "^8.3.0",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-select": "^2.2.6",
@@ -36,6 +45,7 @@
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.3.0",
     "@tailwindcss/postcss": "^4",
     "@types/express": "^5.0.3",
     "@types/node": "^20.19.15",

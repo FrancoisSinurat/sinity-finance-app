@@ -3,6 +3,11 @@
 import { useState, useRef, useEffect } from "react";
 import { useTheme } from "@/lib/theme-provider";
 import { cn } from "@/lib/utils";
+import {
+  getAssistantUnavailableMessage,
+  isAssistantAvailable,
+  sendAssistantMessages,
+} from "@/lib/assistant-client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownContent } from "@/components/MarkdownContent";
@@ -16,6 +21,7 @@ export default function AssistantPage() {
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const { colorTheme } = useTheme();
+  const assistantAvailable = isAssistantAvailable();
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -32,38 +38,24 @@ export default function AssistantPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [...messages, userMessage].map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: data?.error || "Gagal mendapat respons. Cek GROQ_API_KEY di .env",
-          },
-        ]);
-        return;
-      }
+      const content = await sendAssistantMessages(
+        [...messages, userMessage].map((m) => ({
+          role: m.role,
+          content: m.content,
+        }))
+      );
 
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.message || "" },
+        { role: "assistant", content },
       ]);
-    } catch {
+    } catch (error) {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Koneksi gagal. Coba lagi." },
+        {
+          role: "assistant",
+          content: error instanceof Error ? error.message : getAssistantUnavailableMessage(),
+        },
       ]);
     } finally {
       setLoading(false);
@@ -109,6 +101,11 @@ export default function AssistantPage() {
               )}
             >
               Tanya apa saja tentang keuangan: anggaran, menabung, atau cara mencatat pemasukan & pengeluaran.
+            </div>
+          )}
+          {!assistantAvailable && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+              {getAssistantUnavailableMessage()}
             </div>
           )}
           {messages.map((m, i) => (
@@ -206,7 +203,7 @@ export default function AssistantPage() {
             placeholder="Tulis pertanyaan..."
             className="min-h-0 resize-none py-3 max-h-32"
             rows={1}
-            disabled={loading}
+            disabled={loading || !assistantAvailable}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -216,7 +213,7 @@ export default function AssistantPage() {
           />
           <Button
             type="submit"
-            disabled={loading || !input.trim()}
+            disabled={loading || !input.trim() || !assistantAvailable}
             className={cn(
               "shrink-0 self-end",
               colorTheme === "pink" && "bg-pink-500 hover:bg-pink-600 dark:bg-pink-600 dark:hover:bg-pink-500",

@@ -1,96 +1,92 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sinity Finance App
 
-## Getting Started
+Frontend Next.js untuk Sinity Finance yang sekarang sudah disiapkan untuk:
 
-First, run the development server:
+- static export
+- PWA installable
+- wrapper mobile via Capacitor
+
+## Jalankan Local
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Buka `http://localhost:3000`.
 
-### Changing the Port
+## Environment
 
-By default, Next.js runs on port **3000** (industry standard). To use a different port:
+Salin `.env.example` ke `.env`, lalu isi minimal:
 
-**Option 1: Using .env file (recommended)**
-1. Edit file `.env` di root project
-2. Ubah nilai `PORT=3000` menjadi port yang diinginkan, contoh:
-   ```env
-   PORT=3001
-   ```
-3. Restart development server dengan `npm run dev`
+```env
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
+NEXT_PUBLIC_AUTH_API_BASE_URL=http://127.0.0.1:8080
+```
 
-**Option 2: Using command line flag**
+Optional:
+
+```env
+NEXT_PUBLIC_CHAT_API_URL=https://your-backend.example.com/api/v1/chat
+NEXT_PUBLIC_AUTH_MOCK_ON_BACKEND_ERROR=true
+```
+
+Catatan:
+
+- frontend sekarang **langsung** memanggil backend publik, tidak lagi lewat Next API proxy
+- AI Assistant butuh endpoint backend publik sendiri; kalau `NEXT_PUBLIC_CHAT_API_URL` kosong, UI assistant tetap muncul tapi mode kirim pesan dinonaktifkan
+
+## Build Web / PWA
+
 ```bash
-npm run dev -- -p 3001
-# or
-next dev --turbopack -p 3001
+npm run build
 ```
 
-**Option 3: Using environment variable (temporary)**
+Hasil static export ada di folder `out/`.
+
+App sudah punya:
+
+- `manifest.webmanifest`
+- service worker `public/sw.js`
+- offline fallback `public/offline.html`
+- icon PWA dasar
+
+## Capacitor
+
+Config Capacitor ada di `capacitor.config.ts` dengan `webDir: "out"`.
+
+Workflow dasar:
+
 ```bash
-# Windows (PowerShell)
-$env:PORT=3001; npm run dev
-
-# Windows (CMD)
-set PORT=3001 && npm run dev
-
-# Linux/Mac
-PORT=3001 npm run dev
+npm run build
+npm run cap:add:android
+npm run cap:sync
+npm run cap:open:android
 ```
 
-**Common Port Standards:**
-- **3000** - Next.js default (recommended)
-- **3001** - Alternative development port
-- **8080** - Common web server port
-- **5173** - Vite default (if migrating from Vite)
+Untuk iOS:
 
-**Note:** File `.env` sudah di-ignore oleh git untuk keamanan. Gunakan `.env.example` sebagai template.
+```bash
+npm run build
+npm run cap:add:ios
+npm run cap:sync
+npm run cap:open:ios
+```
 
-### Backend (Sinity Finance API)
+Catatan:
 
-Halaman Pemasukkan/Pengeluaran memanggil **sinity-finance-backend** lewat proxy (same-origin). Agar data bisa dimuat:
+- `npx cap add android` dan `npx cap add ios` butuh environment native masing-masing
+- backend API harus bisa diakses device, jadi jangan pakai `localhost` saat testing di HP fisik
 
-1. **Jalankan backend** dari folder `sinity-finance-backend` (port **8080**):
-   ```bash
-   cd path/ke/sinity-finance-backend
-   go run .
-   # atau: make run
-   ```
-2. Di **sinity-finance-app** pastikan `.env` berisi:
-   ```env
-   NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
-   # Optional, jika auth service beda host:
-   # AUTH_API_BASE_URL=http://127.0.0.1:8080
-   # Optional, fallback login/register ke mock mode kalau backend auth down:
-   # NEXT_PUBLIC_AUTH_MOCK_ON_BACKEND_ERROR=true
-   ```
-   (atau `http://localhost:8080`). Restart `npm run dev` setelah mengubah `.env`.
-3. Jika muncul "Backend tidak merespons...", cek: backend sudah jalan di 8080 dan database (PostgreSQL) sudah siap.
+## Arsitektur Sekarang
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- halaman Next di-export statis lewat `output: "export"`
+- auth dan data utama call backend publik lewat `NEXT_PUBLIC_API_BASE_URL`
+- auth endpoint bisa dipisah lewat `NEXT_PUBLIC_AUTH_API_BASE_URL`
+- assistant call endpoint publik lewat `NEXT_PUBLIC_CHAT_API_URL`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Rekomendasi Lanjut
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- siapkan domain backend production dengan HTTPS
+- tambahkan icon PNG khusus iOS/Android kalau mau hasil install lebih rapi
+- tambahkan plugin Capacitor sesuai kebutuhan, misalnya splash screen, status bar, push notification, atau haptics

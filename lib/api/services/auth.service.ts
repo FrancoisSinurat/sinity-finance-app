@@ -140,7 +140,7 @@ async function postAuth(path: string, payload: AuthPayload): Promise<AuthRespons
 export const authService = {
   async login(payload: AuthPayload): Promise<{ token: string; message?: string }> {
     try {
-      const res = await postAuth(apiConfig.auth.loginPath, payload);
+      const res = await postAuth(apiConfig.auth.loginUrl, payload);
       const token = extractToken(res);
       if (!token) throw new Error(res.error || "Token tidak ditemukan di response login");
       return { token, message: res.message };
@@ -154,7 +154,7 @@ export const authService = {
 
   async register(payload: AuthPayload): Promise<{ token: string; message?: string }> {
     try {
-      const res = await postAuth(apiConfig.auth.registerPath, payload);
+      const res = await postAuth(apiConfig.auth.registerUrl, payload);
       const token = extractToken(res);
       if (!token) throw new Error(res.error || "Token tidak ditemukan di response register");
       return { token, message: res.message };
