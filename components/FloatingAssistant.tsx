@@ -27,22 +27,18 @@ export function FloatingAssistant() {
   const { colorTheme } = useTheme();
   const assistantAvailable = isAssistantAvailable();
 
-  // Drag and Snap logic
   const controls = useAnimation();
   const [isDragging, setIsDragging] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
 
-  // Load saved position
+  // Instant layout effect to load position and prevent flicker as much as possible
   useEffect(() => {
-    setIsMounted(true);
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
         const { x, y } = JSON.parse(saved);
         controls.set({ x, y });
-      } catch (e) {
-        console.error("Error loading position", e);
-      }
+      } catch (e) {}
     }
   }, [controls]);
 
@@ -51,29 +47,63 @@ export function FloatingAssistant() {
       setIsDragging(false);
       const screenWidth = window.innerWidth;
       const x = info.point.x;
-      const buttonWidth = 56; // 14 * 4
-      const padding = 16;
-
-      // Calculate if closer to left or right
+      const buttonWidth = 56;
+      
+      // Determine nearest edge (left or right)
       const isLeft = x < screenWidth / 2;
       
-      // Relative to initial position (which is right-4/sm:right-6)
-      // Initial right offset is 16px (right-4) or 24px (sm:right-6)
-      // Let's just use the current offset and snap to edges
+      // Calculate snap position relative to initial right-4 (16px) or sm:right-6 (24px)
+      const horizontalPadding = window.innerWidth >= 640 ? 24 : 16;
       const targetX = isLeft 
-        ? -(screenWidth - buttonWidth - (window.innerWidth >= 640 ? 48 : 32)) 
+        ? -(screenWidth - buttonWidth - (horizontalPadding * 2)) 
         : 0;
+
+      // Vertical constraints check (prevent top overflow)
+      const screenHeight = window.innerHeight;
+      const y = info.point.y;
+      const buttonHeight = 56;
+      const verticalPadding = 24;
+      
+      let targetY = info.offset.y;
+      if (y < verticalPadding) {
+        targetY = info.offset.y + (verticalPadding - y);
+      } else if (y > screenHeight - buttonHeight - verticalPadding) {
+        targetY = info.offset.y - (y - (screenHeight - buttonHeight - verticalPadding));
+      }
 
       await controls.start({
         x: targetX,
-        y: info.offset.y,
-        transition: { type: "spring", stiffness: 400, damping: 30 }
+        y: targetY,
+        transition: { type: "spring", stiffness: 500, damping: 35 }
       });
 
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ x: targetX, y: info.offset.y }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ x: targetX, y: targetY }));
     },
     [controls]
   );
+
+  // Re-calculate on resize to keep button in screen
+  useEffect(() => {
+    const handleResize = () => {
+      const screenWidth = window.innerWidth;
+      const buttonWidth = 56;
+      const horizontalPadding = window.innerWidth >= 640 ? 24 : 16;
+      
+      // If currently snapped to left, update the X to the new left edge
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          const { x } = JSON.parse(saved);
+          if (x < -100) { // If it was snapped to left
+            const targetX = -(screenWidth - buttonWidth - (horizontalPadding * 2));
+            controls.set({ x: targetX });
+          }
+        } catch (e) {}
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [controls]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -322,16 +352,11 @@ export function FloatingAssistant() {
 
       {/* FAB */}
       <motion.button
+        ref={btnRef}
         type="button"
         drag
-        dragElastic={0.1}
-        dragTransition={{ bounceStiffness: 600, bounceDamping: 20 }}
-        dragConstraints={{ 
-          left: -(window?.innerWidth - 72) || -1000, 
-          right: 0, 
-          top: -(window?.innerHeight - 100) || -1000, 
-          bottom: 0 
-        }}
+        dragElastic={0.05}
+        dragMomentum={false}
         onDragStart={() => setIsDragging(true)}
         onDragEnd={handleDragEnd}
         animate={controls}
@@ -341,15 +366,15 @@ export function FloatingAssistant() {
         className={cn(
           "fixed bottom-6 right-4 sm:right-6 z-40",
           "flex items-center justify-center",
-          "w-14 h-14 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300",
-          "hover:scale-105 active:scale-95 touch-none",
+          "w-14 h-14 rounded-2xl shadow-lg hover:shadow-xl transition-shadow",
+          "active:scale-95 touch-none",
           "border border-white/20 dark:border-slate-700/50",
-          colorTheme === "pink" && "bg-gradient-to-br from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white",
-          colorTheme === "sky" && "bg-gradient-to-br from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white",
-          colorTheme === "indigo" && "bg-gradient-to-br from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white",
-          colorTheme === "green" && "bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white",
-          !isMounted && "opacity-0 invisible"
+          colorTheme === "pink" && "bg-gradient-to-br from-pink-500 to-pink-600 text-white",
+          colorTheme === "sky" && "bg-gradient-to-br from-sky-500 to-sky-600 text-white",
+          colorTheme === "indigo" && "bg-gradient-to-br from-indigo-500 to-indigo-600 text-white",
+          colorTheme === "green" && "bg-gradient-to-br from-green-500 to-green-600 text-white",
         )}
+        style={{ x: 0, y: 0 }}
         aria-label={open ? "Tutup asisten" : "Buka AI Assistant"}
       >
         {open ? (

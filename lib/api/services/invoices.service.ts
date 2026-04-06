@@ -53,6 +53,7 @@ function mapToInvoice(raw: unknown, fallbackType?: Invoice["type"]): Invoice {
     category: String(o.category ?? (o as Record<string, unknown>).category_name ?? ""),
     type: normalizeInvoiceType(typeFromResponse, fallbackType),
     target_id: o.target_id != null ? String(o.target_id) : null,
+    account_id: o.account_id != null ? Number(o.account_id) : null,
     created_at: o.created_at != null ? String(o.created_at) : undefined,
     updated_at: o.updated_at != null ? String(o.updated_at) : undefined,
   };

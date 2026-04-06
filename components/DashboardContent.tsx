@@ -9,7 +9,8 @@ import { ApiError, goalsService, settingsService, useInvoicesData } from "@/lib/
 import { computeTargetProgress, type SavingsTarget, type WishlistItem } from "@/lib/goals-storage";
 import { getCategoryBudgets } from "@/lib/budget-storage";
 import { dismissBudgetAlert, syncBudgetAlerts, type BudgetAlert } from "@/lib/budget-notifications";
-import { computeAccountBalances, getAccounts, getInvoiceAccountMap } from "@/lib/accounts-storage";
+import { computeAccountBalances, getAccounts, getAccountsAsync, getInvoiceAccountMap } from "@/lib/accounts-storage";
+import type { Account } from "@/lib/accounts-storage";
 import { filterByMonth, groupByCategory, totalsByType } from "@/lib/finance-analytics";
 import { formatJakartaMonthLabel, getJakartaMonthKey } from "@/lib/date-time";
 import { useTheme } from "@/lib/theme-provider";
@@ -93,6 +94,7 @@ export default function DashboardContent() {
   const [savingsTargets, setSavingsTargets] = useState<SavingsTarget[]>([]);
   const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([]);
   const [insightMode, setInsightMode] = useState<InsightMode>("pengeluaran");
+  const [accounts, setAccounts] = useState<Account[]>(() => getAccounts());
 
   const loading = pemasukkanState.loading || pengeluaranState.loading;
 
@@ -107,10 +109,9 @@ export default function DashboardContent() {
   const monthInvoices = useMemo(() => filterByMonth(allInvoices, monthKey), [allInvoices, monthKey]);
 
   const accountBalances = useMemo(() => {
-    const accounts = getAccounts();
     const invoiceAccountMap = getInvoiceAccountMap();
     return computeAccountBalances(accounts, allInvoices, invoiceAccountMap).slice(0, 3);
-  }, [allInvoices]);
+  }, [allInvoices, accounts]);
 
   const linkedIncomeByTarget = useMemo(() => {
     const map = new Map<string, number>();
@@ -196,8 +197,14 @@ export default function DashboardContent() {
       }
     };
 
+    const loadAccounts = async () => {
+      const data = await getAccountsAsync();
+      if (mounted) setAccounts(data);
+    };
+
     void loadGoals();
     void loadNotifyPreference();
+    void loadAccounts();
 
     return () => {
       mounted = false;

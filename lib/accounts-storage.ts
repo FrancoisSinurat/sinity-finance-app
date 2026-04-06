@@ -1,9 +1,10 @@
 "use client";
 
-import type { Invoice } from "@/lib/api";
+import type { Invoice, Account as ApiAccount, AccountType as ApiAccountType } from "@/lib/api";
+import { accountsService } from "@/lib/api";
 import { getJakartaTimestamp } from "@/lib/date-time";
 
-export type AccountType = "cash" | "bank" | "ewallet" | "other";
+export type AccountType = ApiAccountType;
 
 export type Account = {
   id: string;
@@ -136,6 +137,89 @@ export function createTransfer(
   return next;
 }
 
+export async function getAccountsAsync(): Promise<Account[]> {
+  try {
+    const apiAccounts = await accountsService.getAll();
+    if (!Array.isArray(apiAccounts)) return getAccounts();
+
+    const accounts: Account[] = apiAccounts.map((a) => ({
+      id: String(a.id),
+      name: a.name,
+      accountNumber: a.account_number || "",
+      type: a.type as AccountType,
+      initialBalance: a.initial_balance,
+      color: a.color as Account["color"],
+      createdAt: a.created_at || getJakartaTimestamp(),
+    }));
+    saveAccounts(accounts); // Sync to local cache
+    return accounts;
+  } catch (error) {
+    console.error("Failed to fetch accounts:", error);
+    return getAccounts(); // Fallback to cache
+  }
+}
+
+export async function createAccountAsync(input: Omit<Account, "id" | "createdAt">): Promise<Account> {
+  const apiAccount = await accountsService.create({
+    name: input.name,
+    account_number: input.accountNumber,
+    type: input.type,
+    initial_balance: input.initialBalance,
+    color: input.color,
+  });
+  const next: Account = {
+    id: String(apiAccount.id),
+    name: apiAccount.name,
+    accountNumber: apiAccount.account_number || "",
+    type: apiAccount.type,
+    initialBalance: apiAccount.initial_balance,
+    color: apiAccount.color as Account["color"],
+    createdAt: apiAccount.created_at || getJakartaTimestamp(),
+  };
+  const accounts = getAccounts();
+  saveAccounts([next, ...accounts]);
+  return next;
+}
+
+export async function updateAccountAsync(id: string, patch: Partial<Omit<Account, "id" | "createdAt">>): Promise<Account | null> {
+  const apiId = parseInt(id);
+  if (isNaN(apiId)) return updateAccount(id, patch);
+
+  const apiAccount = await accountsService.update(apiId, {
+    name: patch.name,
+    account_number: patch.accountNumber,
+    type: patch.type,
+    initial_balance: patch.initialBalance,
+    color: patch.color,
+  });
+
+  const next: Account = {
+    id: String(apiAccount.id),
+    name: apiAccount.name,
+    accountNumber: apiAccount.account_number || "",
+    type: apiAccount.type,
+    initialBalance: apiAccount.initial_balance,
+    color: apiAccount.color as Account["color"],
+    createdAt: apiAccount.created_at || getJakartaTimestamp(),
+  };
+
+  const accounts = getAccounts();
+  const idx = accounts.findIndex((a) => a.id === id);
+  if (idx >= 0) {
+    accounts[idx] = next;
+    saveAccounts(accounts);
+  }
+  return next;
+}
+
+export async function deleteAccountAsync(id: string): Promise<void> {
+  const apiId = parseInt(id);
+  if (!isNaN(apiId)) {
+    await accountsService.delete(apiId);
+  }
+  deleteAccount(id); // Clean up local cache
+}
+
 export function computeAccountBalances(
   accounts: Account[],
   invoices: Invoice[],
@@ -145,7 +229,9 @@ export function computeAccountBalances(
     let income = 0;
     let expense = 0;
     invoices.forEach((invoice) => {
-      const mappedAccountId = invoiceAccountMap[String(invoice.id)];
+      // Priority 1: Backend linked account_id
+      // Priority 2: Frontend local map (fallback/legacy)
+      const mappedAccountId = String(invoice.account_id || invoiceAccountMap[String(invoice.id)] || "");
       if (mappedAccountId !== account.id) return;
       if (invoice.type === "pemasukkan") income += invoice.amount;
       if (invoice.type === "pengeluaran") expense += invoice.amount;

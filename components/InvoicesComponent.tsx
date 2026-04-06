@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import type { Invoice } from "@/lib/api";
 import { InvoiceFormDialog } from "@/components/InvoiceFormDialog";
 import { Pencil, Trash2, ChevronLeft, ChevronRight, CalendarDays, Search, Plus, ListFilter } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { getAccounts, getInvoiceAccountMap, setInvoiceAccount, type Account } from "@/lib/accounts-storage";
+import { getAccountsAsync, type Account } from "@/lib/accounts-storage";
 import { formatJakartaDateLabel, formatJakartaMonthLabel, getJakartaMonthDate, getJakartaMonthParts, getJakartaToday } from "@/lib/date-time";
 import { formatCurrencyInput, parseCurrencyInput } from "@/lib/currency-input";
 import type { SavingsTarget } from "@/lib/goals-storage";
@@ -129,7 +129,6 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
     tags: "",
   });
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [invoiceAccountMap, setInvoiceAccountMap] = useState<Record<string, string>>({});
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [targets, setTargets] = useState<SavingsTarget[]>([]);
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
@@ -243,8 +242,13 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
   }, [accounts]);
 
   useEffect(() => {
-    setAccounts(getAccounts());
-    setInvoiceAccountMap(getInvoiceAccountMap());
+    let mounted = true;
+    getAccountsAsync().then((data) => {
+      if (mounted) setAccounts(data);
+    });
+    return () => {
+      mounted = false;
+    };
   }, [isDialogOpen, isDayModalOpen]);
 
   useEffect(() => {
@@ -291,14 +295,13 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
       note: noteWithTags,
       category: formData.category,
       ...(type === "pemasukkan" ? { target_id: selectedTargetId ? Number(selectedTargetId) : 0 } : {}),
+      account_id: selectedAccountId ? Number(selectedAccountId) : 0,
     };
 
     if (isEditMode && editingInvoice) {
       const updated = await updateInvoice(editingInvoice.id, payload);
       setSubmitting(false);
       if (updated) {
-        setInvoiceAccount(updated.id, selectedAccountId);
-        setInvoiceAccountMap(getInvoiceAccountMap());
         setEditingInvoice(null);
         setIsDialogOpen(false);
         resetFormAndClose();
@@ -308,11 +311,9 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
       return;
     }
 
-    const created = await createInvoice({ ...payload, note: noteWithTags });
+    const created = await createInvoice({ ...payload });
     setSubmitting(false);
     if (created) {
-      setInvoiceAccount(created.id, selectedAccountId);
-      setInvoiceAccountMap(getInvoiceAccountMap());
       resetFormAndClose();
       setPage(1);
     } else {
@@ -365,8 +366,8 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
       category: inv.category,
       tags: parseTagsFromNote(inv.note),
     });
-    setSelectedAccountId(getInvoiceAccountMap()[String(inv.id)] ?? null);
-    setSelectedTargetId(type === "pemasukkan" ? inv.target_id ?? null : null);
+    setSelectedAccountId(inv.account_id ? String(inv.account_id) : null);
+    setSelectedTargetId(type === "pemasukkan" ? (inv.target_id ? String(inv.target_id) : null) : null);
     setFormKey((prev) => prev + 1);
     setIsDialogOpen(true);
     setErrorMessage("");
@@ -378,8 +379,6 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
     const ok = await deleteInvoice(deleteConfirmId);
     setDeleteConfirmId(null);
     if (ok) {
-      setInvoiceAccount(deletingId, null);
-      setInvoiceAccountMap(getInvoiceAccountMap());
       setPage((p) => Math.max(1, p - 1));
     }
   };
@@ -685,9 +684,9 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
                       <span className="inline-block mt-2 text-[11px] px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-700 dark:bg-slate-800 dark:text-slate-200">
                         {inv.category}
                       </span>
-                      {invoiceAccountMap[String(inv.id)] && (
+                      {inv.account_id && (
                         <span className="inline-block mt-2 ml-2 text-[11px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200">
-                          {accountNameMap.get(invoiceAccountMap[String(inv.id)]) ?? "Rekening"}
+                          {accountNameMap.get(String(inv.account_id)) ?? "Rekening"}
                         </span>
                       )}
                       {inv.target_id && type === "pemasukkan" && (

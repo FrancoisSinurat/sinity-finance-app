@@ -12,6 +12,7 @@ export interface Invoice {
   category: string;
   type: InvoiceType;
   target_id?: string | null;
+  account_id?: number | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -23,6 +24,7 @@ export interface InvoiceCreatePayload {
   category: string;
   type: InvoiceType;
   target_id?: number;
+  account_id?: number;
 }
 
 export interface InvoiceUpdatePayload extends Partial<InvoiceCreatePayload> {}
@@ -33,6 +35,29 @@ export interface Type {
   created_at?: string;
   updated_at?: string;
 }
+
+export type AccountType = "cash" | "bank" | "ewallet" | "other";
+
+export interface Account {
+  id: number;
+  name: string;
+  account_number?: string;
+  type: AccountType;
+  initial_balance: number;
+  balance: number;
+  color: "pink" | "sky" | "indigo" | "green";
+  created_at?: string;
+}
+
+export interface AccountCreatePayload {
+  name: string;
+  account_number?: string;
+  type: AccountType;
+  initial_balance?: number;
+  color?: string;
+}
+
+export interface AccountUpdatePayload extends Partial<AccountCreatePayload> {}
 
 export interface Category {
   id: number;

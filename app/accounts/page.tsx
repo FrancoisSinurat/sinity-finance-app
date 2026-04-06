@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,15 +11,17 @@ import { useInvoicesData } from "@/lib/api";
 import { getJakartaToday } from "@/lib/date-time";
 import {
   computeAccountBalances,
-  createAccount,
+  createAccountAsync,
   createTransfer,
-  deleteAccount,
+  deleteAccountAsync,
   getAccounts,
+  getAccountsAsync,
   getInvoiceAccountMap,
   getTransfers,
   setInvoiceAccount,
-  updateAccount,
+  updateAccountAsync,
   type AccountType,
+  type Account,
 } from "@/lib/accounts-storage";
 import {
   ArrowDownLeft,
@@ -81,7 +83,23 @@ export default function AccountsPage() {
   const [transferNote, setTransferNote] = useState("");
 
   const [reloadKey, setReloadKey] = useState(0);
-  const accounts = useMemo(() => getAccounts(), [reloadKey]);
+  const [accounts, setAccounts] = useState<Account[]>(() => getAccounts());
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    setLoadingAccounts(true);
+    getAccountsAsync().then((data) => {
+      if (mounted) {
+        setAccounts(data);
+        setLoadingAccounts(false);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [reloadKey]);
+
   const invoiceAccountMap = useMemo(() => getInvoiceAccountMap(), [reloadKey]);
   const transfers = useMemo(() => getTransfers(), [reloadKey]);
   const allInvoices = useMemo(() => [...pemasukkanState.invoices, ...pengeluaranState.invoices], [pemasukkanState.invoices, pengeluaranState.invoices]);
@@ -120,24 +138,41 @@ export default function AccountsPage() {
     setError("");
   };
 
-  const handleCreateAccount = () => {
+  const handleCreateAccount = async () => {
     if (!accountName.trim()) return setError("Nama rekening wajib diisi.");
     if (!accountNumber.trim()) return setError("No rekening wajib diisi.");
     const initial = Number(initialBalance || "0");
     if (Number.isNaN(initial)) return setError("Saldo awal tidak valid.");
-    createAccount({ name: accountName.trim(), accountNumber: accountNumber.trim(), type: accountType, initialBalance: initial, color: colorTheme ?? "pink" });
+    
+    setLoadingAccounts(true);
+    await createAccountAsync({ 
+      name: accountName.trim(), 
+      accountNumber: accountNumber.trim(), 
+      type: accountType, 
+      initialBalance: initial, 
+      color: colorTheme ?? "pink" 
+    });
+    
     resetAccountForm();
     setIsAddDialogOpen(false);
     setReloadKey((v) => v + 1);
   };
 
-  const handleEditAccount = () => {
+  const handleEditAccount = async () => {
     if (!activeAccountId) return;
     if (!accountName.trim()) return setError("Nama rekening wajib diisi.");
     if (!accountNumber.trim()) return setError("No rekening wajib diisi.");
     const initial = Number(initialBalance || "0");
     if (Number.isNaN(initial)) return setError("Saldo awal tidak valid.");
-    updateAccount(activeAccountId, { name: accountName.trim(), accountNumber: accountNumber.trim(), type: accountType, initialBalance: initial });
+    
+    setLoadingAccounts(true);
+    await updateAccountAsync(activeAccountId, { 
+      name: accountName.trim(), 
+      accountNumber: accountNumber.trim(), 
+      type: accountType, 
+      initialBalance: initial 
+    });
+    
     resetAccountForm();
     setIsEditDialogOpen(false);
     setReloadKey((v) => v + 1);
@@ -294,7 +329,13 @@ export default function AccountsPage() {
                               <Button size="sm" variant="outline" className="h-9 w-9 px-0" onClick={(e) => { e.stopPropagation(); setActiveAccountId(acc.id); setAccountName(acc.name); setAccountNumber(acc.accountNumber); setAccountType(acc.type); setInitialBalance(String(acc.initialBalance)); setError(""); setIsEditDialogOpen(true); }} aria-label="Edit" title="Edit">
                                 <Pencil className="h-4 w-4" />
                               </Button>
-                              <Button size="sm" variant="ghost" className="h-9 w-9 px-0 text-red-600 hover:text-red-700" onClick={(e) => { e.stopPropagation(); deleteAccount(acc.id); if (activeAccountId === acc.id) setActiveAccountId(""); setReloadKey((v) => v + 1); }} aria-label="Hapus" title="Hapus">
+                              <Button size="sm" variant="ghost" className="h-9 w-9 px-0 text-red-600 hover:text-red-700" onClick={async (e) => { 
+                                e.stopPropagation(); 
+                                setLoadingAccounts(true);
+                                await deleteAccountAsync(acc.id); 
+                                if (activeAccountId === acc.id) setActiveAccountId(""); 
+                                setReloadKey((v) => v + 1); 
+                              }} aria-label="Hapus" title="Hapus">
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
