@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useTheme } from "@/lib/theme-provider";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Send, Bot, User, Loader2, MessageCircle, ChevronDown } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import {
   getAssistantUnavailableMessage,
@@ -16,6 +16,8 @@ import {
 
 type Message = { role: "user" | "assistant"; content: string };
 
+const STORAGE_KEY = "sinity-assistant-pos";
+
 export function FloatingAssistant() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -24,6 +26,54 @@ export function FloatingAssistant() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const { colorTheme } = useTheme();
   const assistantAvailable = isAssistantAvailable();
+
+  // Drag and Snap logic
+  const controls = useAnimation();
+  const [isDragging, setIsDragging] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Load saved position
+  useEffect(() => {
+    setIsMounted(true);
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const { x, y } = JSON.parse(saved);
+        controls.set({ x, y });
+      } catch (e) {
+        console.error("Error loading position", e);
+      }
+    }
+  }, [controls]);
+
+  const handleDragEnd = useCallback(
+    async (_event: any, info: any) => {
+      setIsDragging(false);
+      const screenWidth = window.innerWidth;
+      const x = info.point.x;
+      const buttonWidth = 56; // 14 * 4
+      const padding = 16;
+
+      // Calculate if closer to left or right
+      const isLeft = x < screenWidth / 2;
+      
+      // Relative to initial position (which is right-4/sm:right-6)
+      // Initial right offset is 16px (right-4) or 24px (sm:right-6)
+      // Let's just use the current offset and snap to edges
+      const targetX = isLeft 
+        ? -(screenWidth - buttonWidth - (window.innerWidth >= 640 ? 48 : 32)) 
+        : 0;
+
+      await controls.start({
+        x: targetX,
+        y: info.offset.y,
+        transition: { type: "spring", stiffness: 400, damping: 30 }
+      });
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ x: targetX, y: info.offset.y }));
+    },
+    [controls]
+  );
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -273,17 +323,32 @@ export function FloatingAssistant() {
       {/* FAB */}
       <motion.button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        drag
+        dragElastic={0.1}
+        dragTransition={{ bounceStiffness: 600, bounceDamping: 20 }}
+        dragConstraints={{ 
+          left: -(window?.innerWidth - 72) || -1000, 
+          right: 0, 
+          top: -(window?.innerHeight - 100) || -1000, 
+          bottom: 0 
+        }}
+        onDragStart={() => setIsDragging(true)}
+        onDragEnd={handleDragEnd}
+        animate={controls}
+        onClick={() => {
+          if (!isDragging) setOpen((o) => !o);
+        }}
         className={cn(
           "fixed bottom-6 right-4 sm:right-6 z-40",
           "flex items-center justify-center",
           "w-14 h-14 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300",
-          "hover:scale-105 active:scale-95",
+          "hover:scale-105 active:scale-95 touch-none",
           "border border-white/20 dark:border-slate-700/50",
           colorTheme === "pink" && "bg-gradient-to-br from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white",
           colorTheme === "sky" && "bg-gradient-to-br from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white",
           colorTheme === "indigo" && "bg-gradient-to-br from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white",
           colorTheme === "green" && "bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white",
+          !isMounted && "opacity-0 invisible"
         )}
         aria-label={open ? "Tutup asisten" : "Buka AI Assistant"}
       >
