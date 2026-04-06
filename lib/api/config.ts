@@ -2,7 +2,7 @@
  * API configuration for static export / PWA / Capacitor builds.
  * Browser clients call public backend URLs directly.
  */
-const DEFAULT_API_BASE_URL = "http://localhost:8080";
+const DEFAULT_API_BASE_URL = "https://nondefining-asha-uncheapened.ngrok-free.dev";
 
 const normalizePath = (value: string): string => {
   const withLeadingSlash = value.startsWith("/") ? value : `/${value}`;
