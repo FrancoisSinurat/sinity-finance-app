@@ -295,7 +295,7 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
       note: noteWithTags,
       category: formData.category,
       ...(type === "pemasukkan" ? { target_id: selectedTargetId ? Number(selectedTargetId) : 0 } : {}),
-      account_id: selectedAccountId ? Number(selectedAccountId) : 0,
+      account_id: selectedAccountId ? Number(selectedAccountId) : undefined,
     };
 
     if (isEditMode && editingInvoice) {

@@ -10,15 +10,12 @@ import { cn } from "@/lib/utils";
 import { useInvoicesData } from "@/lib/api";
 import { getJakartaToday } from "@/lib/date-time";
 import {
-  computeAccountBalances,
   createAccountAsync,
   createTransfer,
   deleteAccountAsync,
   getAccounts,
   getAccountsAsync,
-  getInvoiceAccountMap,
   getTransfers,
-  setInvoiceAccount,
   updateAccountAsync,
   type AccountType,
   type Account,
@@ -100,10 +97,9 @@ export default function AccountsPage() {
     };
   }, [reloadKey]);
 
-  const invoiceAccountMap = useMemo(() => getInvoiceAccountMap(), [reloadKey]);
   const transfers = useMemo(() => getTransfers(), [reloadKey]);
   const allInvoices = useMemo(() => [...pemasukkanState.invoices, ...pengeluaranState.invoices], [pemasukkanState.invoices, pengeluaranState.invoices]);
-  const balances = useMemo(() => computeAccountBalances(accounts, allInvoices, invoiceAccountMap), [accounts, allInvoices, invoiceAccountMap]);
+  const balances = accounts;
 
   const totalWalletBalance = useMemo(() => balances.reduce((sum, item) => sum + item.balance, 0), [balances]);
   const totalIncome = useMemo(() => balances.reduce((sum, item) => sum + item.income, 0), [balances]);
@@ -187,12 +183,9 @@ export default function AccountsPage() {
 
     const fromName = accountNameMap.get(fromAccountId) ?? "Asal";
     const toName = accountNameMap.get(toAccountId) ?? "Tujuan";
-    const expense = await pengeluaranState.createInvoice({ date: transferDate, amount, category: "Transfer", note: transferNote.trim() || `Transfer ke ${toName}` });
-    const income = await pemasukkanState.createInvoice({ date: transferDate, amount, category: "Transfer", note: transferNote.trim() || `Transfer dari ${fromName}` });
+    const expense = await pengeluaranState.createInvoice({ date: transferDate, amount, category: "Transfer", note: transferNote.trim() || `Transfer ke ${toName}`, account_id: Number(fromAccountId) });
+    const income = await pemasukkanState.createInvoice({ date: transferDate, amount, category: "Transfer", note: transferNote.trim() || `Transfer dari ${fromName}`, account_id: Number(toAccountId) });
     if (!expense || !income) return setTransferError("Gagal membuat transaksi transfer.");
-
-    setInvoiceAccount(expense.id, fromAccountId);
-    setInvoiceAccount(income.id, toAccountId);
     createTransfer({ fromAccountId, toAccountId, amount, date: transferDate, note: transferNote.trim() || undefined, expenseInvoiceId: expense.id, incomeInvoiceId: income.id });
 
     setTransferAmount("");

@@ -9,7 +9,7 @@ import { ApiError, goalsService, settingsService, useInvoicesData } from "@/lib/
 import { computeTargetProgress, type SavingsTarget, type WishlistItem } from "@/lib/goals-storage";
 import { getCategoryBudgets } from "@/lib/budget-storage";
 import { dismissBudgetAlert, syncBudgetAlerts, type BudgetAlert } from "@/lib/budget-notifications";
-import { computeAccountBalances, getAccounts, getAccountsAsync, getInvoiceAccountMap } from "@/lib/accounts-storage";
+import { getAccounts, getAccountsAsync } from "@/lib/accounts-storage";
 import type { Account } from "@/lib/accounts-storage";
 import { filterByMonth, groupByCategory, totalsByType } from "@/lib/finance-analytics";
 import { formatJakartaMonthLabel, getJakartaMonthKey } from "@/lib/date-time";
@@ -109,9 +109,8 @@ export default function DashboardContent() {
   const monthInvoices = useMemo(() => filterByMonth(allInvoices, monthKey), [allInvoices, monthKey]);
 
   const accountBalances = useMemo(() => {
-    const invoiceAccountMap = getInvoiceAccountMap();
-    return computeAccountBalances(accounts, allInvoices, invoiceAccountMap).slice(0, 3);
-  }, [allInvoices, accounts]);
+    return accounts.slice(0, 3);
+  }, [accounts]);
 
   const linkedIncomeByTarget = useMemo(() => {
     const map = new Map<string, number>();

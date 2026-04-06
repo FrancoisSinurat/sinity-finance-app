@@ -12,6 +12,9 @@ export type Account = {
   accountNumber: string;
   type: AccountType;
   initialBalance: number;
+  balance: number;
+  income: number;
+  expense: number;
   color: "pink" | "sky" | "indigo" | "green";
   createdAt: string;
 };
@@ -29,7 +32,6 @@ export type TransferRecord = {
 };
 
 const ACCOUNTS_KEY = "accounts_v1";
-const TX_ACCOUNT_MAP_KEY = "invoice_account_map_v1";
 const TRANSFERS_KEY = "account_transfers_v1";
 
 function safeParse<T>(raw: string | null, fallback: T): T {
@@ -56,6 +58,9 @@ export function getAccounts(): Account[] {
           : String(item.id).replace(/-/g, "").slice(-10),
       type: (item.type as AccountType) ?? "other",
       initialBalance: Number(item.initialBalance ?? 0),
+      balance: Number(item.balance ?? item.initialBalance ?? 0),
+      income: Number(item.income ?? 0),
+      expense: Number(item.expense ?? 0),
       color: (item.color as Account["color"]) ?? "pink",
       createdAt: typeof item.createdAt === "string" ? item.createdAt : getJakartaTimestamp(),
     }));
@@ -66,10 +71,13 @@ export function saveAccounts(accounts: Account[]): void {
   localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
 }
 
-export function createAccount(input: Omit<Account, "id" | "createdAt">): Account {
+export function createAccount(input: Omit<Account, "id" | "createdAt" | "balance" | "income" | "expense">): Account {
   const next: Account = {
     id: crypto.randomUUID(),
     createdAt: getJakartaTimestamp(),
+    balance: input.initialBalance,
+    income: 0,
+    expense: 0,
     ...input,
   };
   const accounts = getAccounts();
@@ -77,7 +85,7 @@ export function createAccount(input: Omit<Account, "id" | "createdAt">): Account
   return next;
 }
 
-export function updateAccount(id: string, patch: Partial<Omit<Account, "id" | "createdAt">>): Account | null {
+export function updateAccount(id: string, patch: Partial<Omit<Account, "id" | "createdAt" | "balance" | "income" | "expense">>): Account | null {
   const accounts = getAccounts();
   const idx = accounts.findIndex((a) => a.id === id);
   if (idx < 0) return null;
@@ -89,34 +97,6 @@ export function updateAccount(id: string, patch: Partial<Omit<Account, "id" | "c
 export function deleteAccount(id: string): void {
   const accounts = getAccounts().filter((a) => a.id !== id);
   saveAccounts(accounts);
-
-  const map = getInvoiceAccountMap();
-  const cleaned: Record<string, string> = {};
-  Object.entries(map).forEach(([invoiceId, accountId]) => {
-    if (accountId !== id) cleaned[invoiceId] = accountId;
-  });
-  saveInvoiceAccountMap(cleaned);
-}
-
-function saveInvoiceAccountMap(map: Record<string, string>): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(TX_ACCOUNT_MAP_KEY, JSON.stringify(map));
-}
-
-export function getInvoiceAccountMap(): Record<string, string> {
-  if (typeof window === "undefined") return {};
-  return safeParse<Record<string, string>>(localStorage.getItem(TX_ACCOUNT_MAP_KEY), {});
-}
-
-export function setInvoiceAccount(invoiceId: number, accountId: string | null): void {
-  const key = String(invoiceId);
-  const map = getInvoiceAccountMap();
-  if (!accountId) {
-    delete map[key];
-  } else {
-    map[key] = accountId;
-  }
-  saveInvoiceAccountMap(map);
 }
 
 export function getTransfers(): TransferRecord[] {
@@ -148,6 +128,9 @@ export async function getAccountsAsync(): Promise<Account[]> {
       accountNumber: a.account_number || "",
       type: a.type as AccountType,
       initialBalance: a.initial_balance,
+      balance: a.balance || a.initial_balance,
+      income: a.income || 0,
+      expense: a.expense || 0,
       color: a.color as Account["color"],
       createdAt: a.created_at || getJakartaTimestamp(),
     }));
@@ -159,7 +142,7 @@ export async function getAccountsAsync(): Promise<Account[]> {
   }
 }
 
-export async function createAccountAsync(input: Omit<Account, "id" | "createdAt">): Promise<Account> {
+export async function createAccountAsync(input: Omit<Account, "id" | "createdAt" | "balance" | "income" | "expense">): Promise<Account> {
   const apiAccount = await accountsService.create({
     name: input.name,
     account_number: input.accountNumber,
@@ -173,6 +156,9 @@ export async function createAccountAsync(input: Omit<Account, "id" | "createdAt"
     accountNumber: apiAccount.account_number || "",
     type: apiAccount.type,
     initialBalance: apiAccount.initial_balance,
+    balance: apiAccount.balance || apiAccount.initial_balance,
+    income: apiAccount.income || 0,
+    expense: apiAccount.expense || 0,
     color: apiAccount.color as Account["color"],
     createdAt: apiAccount.created_at || getJakartaTimestamp(),
   };
@@ -181,7 +167,7 @@ export async function createAccountAsync(input: Omit<Account, "id" | "createdAt"
   return next;
 }
 
-export async function updateAccountAsync(id: string, patch: Partial<Omit<Account, "id" | "createdAt">>): Promise<Account | null> {
+export async function updateAccountAsync(id: string, patch: Partial<Omit<Account, "id" | "createdAt" | "balance" | "income" | "expense">>): Promise<Account | null> {
   const apiId = parseInt(id);
   if (isNaN(apiId)) return updateAccount(id, patch);
 
@@ -199,6 +185,9 @@ export async function updateAccountAsync(id: string, patch: Partial<Omit<Account
     accountNumber: apiAccount.account_number || "",
     type: apiAccount.type,
     initialBalance: apiAccount.initial_balance,
+    balance: apiAccount.balance || apiAccount.initial_balance,
+    income: apiAccount.income || 0,
+    expense: apiAccount.expense || 0,
     color: apiAccount.color as Account["color"],
     createdAt: apiAccount.created_at || getJakartaTimestamp(),
   };
@@ -220,27 +209,3 @@ export async function deleteAccountAsync(id: string): Promise<void> {
   deleteAccount(id); // Clean up local cache
 }
 
-export function computeAccountBalances(
-  accounts: Account[],
-  invoices: Invoice[],
-  invoiceAccountMap: Record<string, string>
-): Array<Account & { balance: number; income: number; expense: number }> {
-  return accounts.map((account) => {
-    let income = 0;
-    let expense = 0;
-    invoices.forEach((invoice) => {
-      // Priority 1: Backend linked account_id
-      // Priority 2: Frontend local map (fallback/legacy)
-      const mappedAccountId = String(invoice.account_id || invoiceAccountMap[String(invoice.id)] || "");
-      if (mappedAccountId !== account.id) return;
-      if (invoice.type === "pemasukkan") income += invoice.amount;
-      if (invoice.type === "pengeluaran") expense += invoice.amount;
-    });
-    return {
-      ...account,
-      income,
-      expense,
-      balance: account.initialBalance + income - expense,
-    };
-  });
-}

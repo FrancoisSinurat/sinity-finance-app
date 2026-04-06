@@ -45,6 +45,8 @@ export interface Account {
   type: AccountType;
   initial_balance: number;
   balance: number;
+  income: number;
+  expense: number;
   color: "pink" | "sky" | "indigo" | "green";
   created_at?: string;
 }
