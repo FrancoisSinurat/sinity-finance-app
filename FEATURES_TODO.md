@@ -121,6 +121,75 @@ Dokumen ini berisi fitur yang **sudah ada** dan fitur **yang bisa ditambah** unt
 
 ---
 
+## Catering — ringkasan penjualan harian (menu dipesan per hari)
+
+Use case: bisnis catering; tiap hari ada daftar menu yang dipesan — perlu **dicatat dan diringkas** (nominal / qty per menu), data **tersimpan di backend**, dan di app ada **halaman + menu** khusus untuk melihat/mengisi ringkasan harian.
+
+**Integrasi pemasukkan:** saat input **pemasukkan**, user bisa memakai kategori yang mengindikasikan **penjualan** (mis. kategori tetap “Penjualan” / id khusus) — lalu muncul **pemilih menu** dari master menu catering; pilihan itu **disimpan berelasi** ke transaksi (bukan cuma teks bebas).
+
+### Backend (`sinity-finance-backend`)
+
+- [ ] **(P0) Model & migrasi DB**
+  - Master **menu catering** (nama, harga default opsional, aktif/nonaktif, urutan tampilan).
+  - **Entri penjualan per tanggal** (satu baris per hari per user, timezone Asia/Jakarta).
+  - **Baris detail** per entri: `menu_id` (atau nama snapshot jika menu dihapus), qty, harga satuan (override), subtotal — agar histori tetap konsisten.
+  - **Relasi ke transaksi pemasukkan (invoice / income):**
+    - Tambah field opsional di pemasukkan, mis. `catering_menu_id` + opsional `quantity` / `unit_price_snapshot`, **atau** tabel junction `income_menu_lines` jika satu transaksi pemasukkan bisa memuat **beberapa baris menu** — pilih satu desain dan dokumentasikan.
+    - Foreign key ke `catering_menus`; on delete: SET NULL atau simpan snapshot nama harga (jangan sampai histori transaksi rusak kalau menu dihapus).
+  - **Kategori penjualan:** tetapkan cara teknisnya — mis. `category_id` wajib mengacu ke kategori “Penjualan” / flag `is_sales_category`, atau daftar id kategori yang memicu field menu — agar backend bisa validasi “kalau kategori X, `menu_id` wajib / boleh”.
+- [ ] **(P0) API transaksi pemasukkan (extend)**
+  - `POST/PATCH` pemasukkan menerima body opsional: `catering_menu_id`, qty, dll. sesuai skema; validasi konsisten dengan kategori.
+  - `GET` pemasukkan / detail mengembalikan objek menu ringkas (id, nama) bila ada relasi.
+- [ ] **(P0) API REST + auth**
+  - CRUD menu (scoped ke user yang login).
+  - `GET/POST/PATCH/DELETE` ringkasan penjualan per tanggal (`YYYY-MM-DD`), termasuk upsert baris detail (bulk atau partial update — pilih satu pola dan dokumentasikan).
+  - `GET` daftar ringkasan per rentang (mis. satu bulan) untuk kalender / tabel.
+- [ ] **(P0) Validasi & aturan**
+  - Tanggal tidak boleh duplikat per user; qty ≥ 0; harga ≥ 0; subtotal = qty × harga (atau disimpan denormalized dengan cek konsistensi).
+  - Semua endpoint hanya mengakses data milik `user_id` dari JWT.
+- [ ] **(P1) Agregasi**
+  - Endpoint ringkas: total omzet per hari / per bulan, top menu di periode (opsional, bisa ditunda).
+- [ ] **(P1) Dokumentasi**
+  - Path di bawah `/api/v1/...` konsisten dengan modul lain; contoh request/response di README atau OpenAPI.
+
+### Frontend (`sinity-finance-app`)
+
+- [ ] **(P0) Routing & navigasi**
+  - Halaman baru, mis. `/catering` atau `/penjualan-harian` (static export: pastikan route ada di daftar halaman yang di-export).
+  - Item di **sidebar** (dan mobile sheet) menuju halaman ini; judul jelas (mis. “Penjualan harian” / “Catering”).
+- [ ] **(P0) Integrasi API**
+  - Service di `lib/api/services/...` memakai `apiRequest` + token seperti modul lain.
+  - Type TypeScript untuk menu, entri harian, baris detail; mapping error (401, validasi).
+- [ ] **(P0) UI master menu**
+  - List menu + tambah/edit/hapus (atau nonaktifkan); harga default membantu input cepat.
+- [ ] **(P0) UI entri harian**
+  - Pilih **tanggal** (date picker, zona Asia/Jakarta).
+  - Tabel/barisan: pilih menu, qty, harga (bisa prefill dari harga default); tampilkan subtotal & **total hari itu**.
+  - Simpan ke backend; loading/error state.
+- [ ] **(P1) Ringkasan / laporan singkat**
+  - Tampilan **bulanan** (kalender atau list tanggal) dengan total per hari; klik tanggal → edit detail.
+  - Opsional: kartu “hari ini” di **dashboard** mengacu ke data yang sama (bisa fase 2).
+- [ ] **(P1) Polish**
+  - Format Rupiah & tanggal konsisten dengan transaksi lain; empty state jika belum ada menu / belum ada penjualan.
+- [ ] **(P0) Form pemasukkan — kategori penjualan + menu**
+  - Saat tipe **pemasukkan** dan user memilih kategori yang dianggap **penjualan** (sama aturan dengan backend: id / nama / flag), tampilkan **dropdown/autocomplete menu** (fetch dari API master menu).
+  - Opsional: prefill **nominal** dari harga default menu × qty jika ada field qty.
+  - Kirim `catering_menu_id` (dan field terkait) saat simpan/edit pemasukkan; tampilkan nama menu di list & detail transaksi.
+  - Update type `Invoice` / payload di `invoices.service` / modal input agar selaras dengan kontrak backend.
+
+### Urutan kerja yang disarankan
+
+1. Backend: master menu + **extend skema & API pemasukkan** (relasi menu + aturan kategori penjualan).  
+2. Backend: entri ringkasan harian + GET by range (bisa paralel dengan (1) jika tim beda).  
+3. Frontend: master menu + **form pemasukkan** (kategori penjualan → pilih menu).  
+4. Frontend: halaman entri harian / laporan bulanan; sinkron data (lihat catatan di bawah).
+
+### Catatan sinkron: transaksi vs ringkasan harian
+
+- Putuskan **sumber kebenaran**: (A) ringkasan harian dihitung/diisi **hanya** dari pemasukkan yang punya `menu_id`, (B) entri harian **mandiri** dan tidak otomatis dari pemasukkan, atau (C) keduanya dengan job sinkron — supaya tidak dobel omzet. Tulis keputusan di README backend.
+
+---
+
 ## Cara pakai
 
 - Centang `[ ]` → `[x]` saat fitur sudah selesai.
@@ -129,7 +198,7 @@ Dokumen ini berisi fitur yang **sudah ada** dan fitur **yang bisa ditambah** unt
 
 ---
 
-*Terakhir diperbarui: 23 Maret 2026*
+*Terakhir diperbarui: 8 April 2026*
 
 ---
 
@@ -141,6 +210,7 @@ Dokumen ini berisi fitur yang **sudah ada** dan fitur **yang bisa ditambah** unt
 - Area `target tabungan / wishlist` sekarang sudah punya halaman khusus, integrasi backend, ringkasan dashboard, dan bisa menerima alokasi dari pemasukkan.
 - Area `dashboard` sekarang sudah masuk fase polish UX: lebih interaktif, navigable, dan visualnya lebih konsisten lintas device.
 - Next yang paling masuk akal setelah ini adalah `hutang & piutang`, lalu `lampiran` atau `transaksi berulang`.
+- Fitur **catering / penjualan harian** punya section checklist sendiri (backend + frontend); eksekusi idealnya mulai dari API + DB di `sinity-finance-backend`, lalu halaman & sidebar di app.
 
 ---
 

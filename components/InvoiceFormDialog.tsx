@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, FolderKanban, Landmark, ReceiptText, Tag, Target, Wallet } from "lucide-react";
+import { CalendarDays, FolderKanban, Landmark, ReceiptText, Tag, Target, UtensilsCrossed, Wallet } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 import type { Account } from "@/lib/accounts-storage";
 import { formatCurrencyCompactLabel, formatCurrencyInput } from "@/lib/currency-input";
 import type { SavingsTarget } from "@/lib/goals-storage";
+import { isSalesCategory } from "@/lib/catering-config";
+import type { CateringMenu } from "@/lib/api";
 
 export type FormData = {
   date: string;
@@ -41,6 +43,14 @@ type InvoiceFormDialogProps = {
   colorTheme: string | null;
   isCustomCategory: boolean;
   setIsCustomCategory: (v: boolean) => void;
+  /** Pemasukkan: tampilkan pemilih menu jika kategori = penjualan/catering. */
+  showCateringMenuSelector?: boolean;
+  cateringMenus?: CateringMenu[];
+  cateringMenusLoading?: boolean;
+  selectedCateringMenuId?: string | null;
+  onCateringMenuChange?: (menuId: string | null) => void;
+  cateringQty?: string;
+  onCateringQtyChange?: (qty: string) => void;
   onSave: (e?: React.FormEvent) => void;
   onCancel: () => void;
 };
@@ -122,12 +132,20 @@ export function InvoiceFormDialog({
   colorTheme,
   isCustomCategory,
   setIsCustomCategory,
+  showCateringMenuSelector = false,
+  cateringMenus = [],
+  cateringMenusLoading = false,
+  selectedCateringMenuId = null,
+  onCateringMenuChange,
+  cateringQty = "1",
+  onCateringQtyChange,
   onSave,
   onCancel,
 }: InvoiceFormDialogProps) {
   const styles = themeClass(colorTheme);
   const inputSurface = cn("h-10 w-full rounded-[18px] bg-white px-3.5 shadow-sm dark:bg-slate-950", styles.field);
   const amountHint = formData.amount ? formatCurrencyCompactLabel(formData.amount) : "Nominal akan diformat otomatis";
+  const showCateringBlock = showCateringMenuSelector && isSalesCategory(formData.category);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -236,6 +254,50 @@ export function InvoiceFormDialog({
                 )}
               </div>
             </div>
+
+            {showCateringBlock ? (
+              <div className={cn("rounded-[18px] border p-2.5 md:rounded-[20px] md:p-3", styles.border, styles.soft)}>
+                <Label icon={UtensilsCrossed} text="Menu catering" />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Select
+                    value={selectedCateringMenuId ?? "__none__"}
+                    onValueChange={(value) => {
+                      const id = value === "__none__" ? null : value;
+                      onCateringMenuChange?.(id);
+                    }}
+                    disabled={cateringMenusLoading}
+                  >
+                    <SelectTrigger className={cn("justify-between", inputSurface)}>
+                      <SelectValue placeholder={cateringMenusLoading ? "Memuat menu..." : "Pilih menu"} />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-2xl border-neutral-200 bg-white/95 dark:border-slate-800 dark:bg-slate-950/95">
+                      <SelectItem value="__none__">Tanpa menu</SelectItem>
+                      {cateringMenus.map((m) => (
+                        <SelectItem key={m.id} value={String(m.id)}>
+                          {m.name}
+                          {m.default_price > 0 ? ` — Rp ${m.default_price.toLocaleString("id-ID")}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div>
+                    <div className="mb-1.5 text-[13px] font-medium text-neutral-600 dark:text-slate-300 sm:mb-2 sm:text-sm">Qty</div>
+                    <Input
+                      type="number"
+                      min={1}
+                      inputMode="numeric"
+                      value={cateringQty}
+                      onChange={(e) => onCateringQtyChange?.(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      className={inputSurface}
+                    />
+                  </div>
+                </div>
+                <p className="mt-2 text-[12px] text-neutral-500 dark:text-slate-400">
+                  Nominal bisa mengikuti harga menu × qty; kamu tetap bisa mengubah manual.
+                </p>
+              </div>
+            ) : null}
 
             <div className={cn("grid gap-3 sm:grid-cols-2", showTargetSelector && "sm:grid-cols-2")}>
               <div>

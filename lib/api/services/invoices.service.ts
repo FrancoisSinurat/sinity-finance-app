@@ -45,6 +45,16 @@ function mapToInvoice(raw: unknown, fallbackType?: Invoice["type"]): Invoice {
     ((o.type as Record<string, unknown> | undefined)?.type as unknown);
   const typeFromResponse = o.type ?? o.type_name ?? nestedType;
 
+  const rawMenu = o.catering_menu;
+  let catering_menu: Invoice["catering_menu"] = null;
+  if (rawMenu && typeof rawMenu === "object") {
+    const m = rawMenu as Record<string, unknown>;
+    const mid = Number(m.id);
+    if (mid) {
+      catering_menu = { id: mid, name: String(m.name ?? "") };
+    }
+  }
+
   return {
     id: Number(o.id) || 0,
     date: String(o.date ?? ""),
@@ -54,6 +64,9 @@ function mapToInvoice(raw: unknown, fallbackType?: Invoice["type"]): Invoice {
     type: normalizeInvoiceType(typeFromResponse, fallbackType),
     target_id: o.target_id != null ? String(o.target_id) : null,
     account_id: o.account_id != null ? Number(o.account_id) : null,
+    catering_menu_id: o.catering_menu_id != null ? Number(o.catering_menu_id) : null,
+    catering_quantity: o.catering_quantity != null ? Number(o.catering_quantity) : null,
+    catering_menu,
     created_at: o.created_at != null ? String(o.created_at) : undefined,
     updated_at: o.updated_at != null ? String(o.updated_at) : undefined,
   };

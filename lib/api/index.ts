@@ -33,3 +33,12 @@ export { budgetService } from "./services/budget.service";
 export { goalsService } from "./services/goals.service";
 export { accountsService } from "./services/accounts.service";
 export { useInvoicesData } from "./hooks/useInvoicesData";
+
+export { cateringService, isCateringApiMissingError } from "./services/catering.service";
+export type {
+  CateringMenu,
+  CateringMenuCreatePayload,
+  CateringMenuUpdatePayload,
+  CateringDailySales,
+  CateringDailyLine,
+} from "./services/catering.service";

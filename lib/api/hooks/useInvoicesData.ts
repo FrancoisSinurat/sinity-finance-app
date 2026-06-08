@@ -18,8 +18,22 @@ interface UseInvoicesDataResult {
     category: string;
     target_id?: number;
     account_id?: number;
+    catering_menu_id?: number;
+    catering_quantity?: number;
   }) => Promise<Invoice | null>;
-  updateInvoice: (id: number, payload: { date?: string; amount?: number; note?: string; category?: string; target_id?: number; account_id?: number }) => Promise<Invoice | null>;
+  updateInvoice: (
+    id: number,
+    payload: {
+      date?: string;
+      amount?: number;
+      note?: string;
+      category?: string;
+      target_id?: number;
+      account_id?: number;
+      catering_menu_id?: number;
+      catering_quantity?: number;
+    }
+  ) => Promise<Invoice | null>;
   deleteInvoice: (id: number) => Promise<boolean>;
 }
 

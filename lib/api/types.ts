@@ -4,6 +4,12 @@
 
 export type InvoiceType = "pemasukkan" | "pengeluaran";
 
+/** Ringkas menu catering dari API pemasukkan (jika ada relasi). */
+export interface InvoiceCateringMenuRef {
+  id: number;
+  name: string;
+}
+
 export interface Invoice {
   id: number;
   date: string;
@@ -15,6 +21,10 @@ export interface Invoice {
   account_id?: number | null;
   created_at?: string;
   updated_at?: string;
+  /** Relasi ke master menu catering (opsional; backend sinity-finance-backend). */
+  catering_menu_id?: number | null;
+  catering_quantity?: number | null;
+  catering_menu?: InvoiceCateringMenuRef | null;
 }
 
 export interface InvoiceCreatePayload {
@@ -25,6 +35,8 @@ export interface InvoiceCreatePayload {
   type: InvoiceType;
   target_id?: number;
   account_id?: number;
+  catering_menu_id?: number;
+  catering_quantity?: number;
 }
 
 export interface InvoiceUpdatePayload extends Partial<InvoiceCreatePayload> {}

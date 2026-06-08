@@ -1,0 +1,53 @@
+name: CI & Deploy VPS
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: sinity-finance-app-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_PUBLIC_API_BASE_URL: https://api.sinityspace.my.id/sinify
+  NEXT_PUBLIC_AUTH_API_BASE_URL: https://api.sinityspace.my.id/sinify
+  NEXT_PUBLIC_AUTH_MOCK_ON_BACKEND_ERROR: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static export
+        run: npm run build
+
+  deploy:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd /var/www/myproduct/sinity-finance-app
+            git fetch origin master
+            git reset --hard origin/master
+            chmod +x deploy/vps-deploy.sh
+            ./deploy/vps-deploy.sh

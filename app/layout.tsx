@@ -5,10 +5,12 @@ import { ThemeProvider } from "@/lib/theme-provider";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
 import { PwaProvider } from "@/components/PwaProvider";
 
+const appBasePath = "/sinify";
+
 export const metadata: Metadata = {
   title: "Sinity Finance",
   description: "Aplikasi catatan keuangan perorangan",
-  manifest: "/manifest.webmanifest",
+  manifest: `${appBasePath}/manifest.webmanifest`,
   applicationName: "Sinity Finance",
   appleWebApp: {
     capable: true,
@@ -17,11 +19,11 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon.ico" },
-      { url: "/icon-192.svg", type: "image/svg+xml" },
-      { url: "/icon-512.svg", type: "image/svg+xml" },
+      { url: `${appBasePath}/favicon.ico` },
+      { url: `${appBasePath}/icon-192.svg`, type: "image/svg+xml" },
+      { url: `${appBasePath}/icon-512.svg`, type: "image/svg+xml" },
     ],
-    apple: [{ url: "/apple-touch-icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: `${appBasePath}/apple-touch-icon.svg`, type: "image/svg+xml" }],
   },
 };
 
