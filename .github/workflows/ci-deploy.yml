@@ -18,19 +18,24 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: node:22-bookworm
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify Node.js version
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Verify toolchain
         run: |
           node -v
           npm -v
-          node -e "const major = +process.versions.node.split('.')[0]; if (major < 22) { console.error('Node.js 22+ required'); process.exit(1); }"
+          test -f package-lock.json
+          node -e "const major = +process.versions.node.split('.')[0]; if (major < 22) process.exit(1);"
 
       - name: Install dependencies
-        run: npm ci --no-audit --fund=false
+        run: |
+          npm cache clean --force
+          npm install --no-audit --fund=false
 
       - name: Build static export
         run: npm run build
