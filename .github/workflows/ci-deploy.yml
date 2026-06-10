@@ -24,10 +24,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: npm
+
+      - name: Verify Node.js version
+        run: |
+          node -v
+          npm -v
+          node -e "const major = +process.versions.node.split('.')[0]; if (major < 22) { console.error('Node.js 22+ required'); process.exit(1); }"
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --fund=false
 
       - name: Build static export
         run: npm run build
