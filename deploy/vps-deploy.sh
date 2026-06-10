@@ -10,7 +10,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-npm ci
+npm ci --ignore-scripts
 set -a
 source "$ENV_FILE"
 set +a

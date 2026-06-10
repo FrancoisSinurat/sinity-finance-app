@@ -33,9 +33,7 @@ jobs:
           node -e "const major = +process.versions.node.split('.')[0]; if (major < 22) process.exit(1);"
 
       - name: Install dependencies
-        run: |
-          npm cache clean --force
-          npm install --no-audit --fund=false
+        run: npm ci --ignore-scripts --no-audit --fund=false
 
       - name: Build static export
         run: npm run build
