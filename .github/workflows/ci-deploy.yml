@@ -3,44 +3,13 @@ name: CI & Deploy VPS
 on:
   push:
     branches: [master]
-  pull_request:
-    branches: [master]
 
 concurrency:
-  group: sinity-finance-app-${{ github.ref }}
+  group: sinity-finance-app-deploy
   cancel-in-progress: true
 
-env:
-  NEXT_PUBLIC_API_BASE_URL: https://api.sinityspace.my.id/sinify
-  NEXT_PUBLIC_AUTH_API_BASE_URL: https://api.sinityspace.my.id/sinify
-  NEXT_PUBLIC_AUTH_MOCK_ON_BACKEND_ERROR: false
-
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Verify toolchain
-        run: |
-          node -v
-          npm -v
-          test -f package-lock.json
-          node -e "const major = +process.versions.node.split('.')[0]; if (major < 22) process.exit(1);"
-
-      - name: Install dependencies
-        run: npm ci --ignore-scripts --no-audit --fund=false
-
-      - name: Build static export
-        run: npm run build
-
   deploy:
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to VPS
