@@ -37,8 +37,10 @@ export const apiConfig = {
   baseUrl: getBaseUrl() ,
   auth: {
     mockOnBackendError: getBooleanEnv(process.env.NEXT_PUBLIC_AUTH_MOCK_ON_BACKEND_ERROR, true),
+    googleClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "",
     loginUrl: joinUrl(getAuthBaseUrl(), process.env.NEXT_PUBLIC_AUTH_LOGIN_PATH ?? "/api/v1/auth/login"),
     registerUrl: joinUrl(getAuthBaseUrl(), process.env.NEXT_PUBLIC_AUTH_REGISTER_PATH ?? "/api/v1/auth/register"),
+    googleLoginUrl: joinUrl(getAuthBaseUrl(), process.env.NEXT_PUBLIC_AUTH_GOOGLE_PATH ?? "/api/v1/auth/google"),
   },
   chatUrl: process.env.NEXT_PUBLIC_CHAT_API_URL ?? "",
   timeout: 15_000,

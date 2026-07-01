@@ -11,6 +11,9 @@ import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 import { authService } from "@/lib/api";
 import { setToken } from "@/lib/auth";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
+import { apiConfig } from "@/lib/api/config";
+import { withBasePath } from "@/lib/paths";
 
 export default function LoginCard() {
   const [loading, setLoading] = useState(false);
@@ -35,7 +38,7 @@ export default function LoginCard() {
       setToken(result.token);
       setMessage(result.message ?? "Login berhasil.");
       setTimeout(() => {
-        window.location.href = "/dashboard";
+        window.location.href = withBasePath("/dashboard");
       }, 400);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Gagal login");
@@ -253,6 +256,26 @@ export default function LoginCard() {
                 )}
               </Button>
             </form>
+
+            {apiConfig.auth.googleClientId && (
+              <>
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-neutral-200 dark:border-slate-600" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white dark:bg-slate-800 px-3 text-neutral-400 dark:text-neutral-500">
+                      atau
+                    </span>
+                  </div>
+                </div>
+                <GoogleSignInButton
+                  disabled={loading}
+                  setLoading={setLoading}
+                  setMessage={setMessage}
+                />
+              </>
+            )}
 
             {message && (
               <motion.div

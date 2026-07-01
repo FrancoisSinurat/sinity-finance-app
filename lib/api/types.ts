@@ -87,6 +87,10 @@ export interface AuthPayload {
   name?: string;
 }
 
+export interface GoogleLoginPayload {
+  id_token: string;
+}
+
 export interface AuthResponse {
   token?: string;
   access_token?: string;

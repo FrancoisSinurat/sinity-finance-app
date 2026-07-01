@@ -1,24 +1,35 @@
 const CACHE_NAME = "sinity-finance-v1";
+
+function getBasePath() {
+  const path = self.location.pathname;
+  if (path.endsWith("/sw.js")) {
+    return path.slice(0, -"/sw.js".length);
+  }
+  return "";
+}
+
+const BASE = getBasePath();
+
 const APP_SHELL = [
-  "/",
-  "/login/",
-  "/register/",
-  "/dashboard/",
-  "/accounts/",
-  "/assistant/",
-  "/budget/",
-  "/goals/",
-  "/invoices/",
-  "/invoices/pemasukkan/",
-  "/invoices/pengeluaran/",
-  "/profile/",
-  "/reports/",
-  "/settings/",
-  "/manifest.webmanifest",
-  "/offline.html",
-  "/icon-192.svg",
-  "/icon-512.svg",
-  "/apple-touch-icon.svg"
+  `${BASE}/`,
+  `${BASE}/login/`,
+  `${BASE}/register/`,
+  `${BASE}/dashboard/`,
+  `${BASE}/accounts/`,
+  `${BASE}/assistant/`,
+  `${BASE}/budget/`,
+  `${BASE}/goals/`,
+  `${BASE}/invoices/`,
+  `${BASE}/invoices/pemasukkan/`,
+  `${BASE}/invoices/pengeluaran/`,
+  `${BASE}/profile/`,
+  `${BASE}/reports/`,
+  `${BASE}/settings/`,
+  `${BASE}/manifest.webmanifest`,
+  `${BASE}/offline.html`,
+  `${BASE}/icon-192.svg`,
+  `${BASE}/icon-512.svg`,
+  `${BASE}/apple-touch-icon.svg`,
 ];
 
 self.addEventListener("install", (event) => {
@@ -54,7 +65,7 @@ self.addEventListener("fetch", (event) => {
         })
         .catch(async () => {
           const cached = await caches.match(request);
-          return cached || caches.match("/offline.html");
+          return cached || caches.match(`${BASE}/offline.html`);
         })
     );
     return;

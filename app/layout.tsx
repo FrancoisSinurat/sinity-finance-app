@@ -1,11 +1,11 @@
 import "./globals.css";
 import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
-import { ThemeProvider } from "@/lib/theme-provider";
+import { AppProviders } from "@/components/AppProviders";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
 import { PwaProvider } from "@/components/PwaProvider";
 
-const appBasePath = "/sinify";
+const appBasePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
 export const metadata: Metadata = {
   title: "Sinity Finance",
@@ -35,10 +35,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="id" suppressHydrationWarning>
       <body className="antialiased">
-        <ThemeProvider>
+        <AppProviders>
           <PwaProvider />
           <ProtectedLayout>{children}</ProtectedLayout>
-        </ThemeProvider>
+        </AppProviders>
       </body>
     </html>
   );

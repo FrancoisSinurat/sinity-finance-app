@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { APP_BASE_PATH, withBasePath } from "@/lib/paths";
 
 export function PwaProvider() {
   useEffect(() => {
@@ -23,9 +24,14 @@ export function PwaProvider() {
           return;
         }
 
-        const hasAppWorker = registrations.some((registration) => registration.active?.scriptURL.endsWith("/sw.js"));
+        const swPath = withBasePath("/sw.js");
+        const hasAppWorker = registrations.some((registration) =>
+          registration.active?.scriptURL.endsWith(swPath)
+        );
         if (!hasAppWorker) {
-          await navigator.serviceWorker.register("/sw.js");
+          await navigator.serviceWorker.register(swPath, {
+            scope: APP_BASE_PATH ? `${APP_BASE_PATH}/` : "/",
+          });
         }
       } catch (error) {
         console.error("Service worker setup failed:", error);

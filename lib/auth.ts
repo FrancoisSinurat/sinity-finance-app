@@ -1,5 +1,7 @@
 "use client";
 
+import { withBasePath } from "@/lib/paths";
+
 const TOKEN_KEY = "token";
 
 type JwtPayload = Record<string, unknown>;
@@ -23,7 +25,7 @@ export function setToken(token: string): void {
 export function logout(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(TOKEN_KEY);
-  window.location.href = "/login";
+  window.location.href = withBasePath("/login");
 }
 
 export function getTokenPayload(): JwtPayload | null {

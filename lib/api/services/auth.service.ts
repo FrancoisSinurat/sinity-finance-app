@@ -1,6 +1,6 @@
 import { apiRequest, ApiError } from "../client";
 import { apiConfig } from "../config";
-import type { AuthPayload, AuthResponse } from "../types";
+import type { AuthPayload, AuthResponse, GoogleLoginPayload } from "../types";
 import { getJakartaTimestamp } from "@/lib/date-time";
 
 const MOCK_USERS_KEY = "auth_mock_users_v1";
@@ -137,6 +137,15 @@ async function postAuth(path: string, payload: AuthPayload): Promise<AuthRespons
     });
 }
 
+async function postGoogleAuth(idToken: string): Promise<AuthResponse> {
+  const payload: GoogleLoginPayload = { id_token: idToken };
+  return apiRequest<AuthResponse>(apiConfig.auth.googleLoginUrl, {
+    method: "POST",
+    body: JSON.stringify(payload),
+    absolutePath: true,
+  });
+}
+
 export const authService = {
   async login(payload: AuthPayload): Promise<{ token: string; message?: string }> {
     try {
@@ -163,6 +172,17 @@ export const authService = {
         return registerWithMock(payload);
       }
       throw new Error(resolveAuthError(err, "Auth request gagal"));
+    }
+  },
+
+  async googleLogin(idToken: string): Promise<{ token: string; message?: string }> {
+    try {
+      const res = await postGoogleAuth(idToken);
+      const token = extractToken(res);
+      if (!token) throw new Error(res.error || "Token tidak ditemukan di response Google login");
+      return { token, message: res.message };
+    } catch (err) {
+      throw new Error(resolveAuthError(err, "Google login gagal"));
     }
   },
 };
