@@ -7,6 +7,7 @@ import type {
   Settings,
   Type,
 } from "./types";
+import { getJakartaMonthKey, getJakartaToday } from "@/lib/date-time";
 
 export type MockGoalTarget = {
   id: number;
@@ -45,9 +46,18 @@ export type MockStore = {
   nextId: number;
 };
 
-const now = "2026-03-01T00:00:00+07:00";
+/** Tanggal di bulan berjalan (Jakarta), agar total invoices langsung tampil. */
+function dayInCurrentMonth(day: number): string {
+  const monthKey = getJakartaMonthKey();
+  const [year, month] = monthKey.split("-").map(Number);
+  const lastDay = new Date(year, month, 0).getDate();
+  const safeDay = Math.min(Math.max(day, 1), lastDay);
+  return `${monthKey}-${String(safeDay).padStart(2, "0")}`;
+}
 
 export function createDefaultMockStore(): MockStore {
+  const now = `${getJakartaToday()}T08:00:00+07:00`;
+
   return {
     nextId: 100,
     types: [
@@ -67,7 +77,7 @@ export function createDefaultMockStore(): MockStore {
     invoices: [
       {
         id: 1,
-        date: "2026-03-01",
+        date: dayInCurrentMonth(1),
         amount: 8_500_000,
         note: "Gaji bulanan",
         category: "Gaji",
@@ -77,7 +87,7 @@ export function createDefaultMockStore(): MockStore {
       },
       {
         id: 2,
-        date: "2026-03-03",
+        date: dayInCurrentMonth(3),
         amount: 1_500_000,
         note: "Project freelance",
         category: "Freelance",
@@ -87,7 +97,7 @@ export function createDefaultMockStore(): MockStore {
       },
       {
         id: 3,
-        date: "2026-03-05",
+        date: dayInCurrentMonth(5),
         amount: 450_000,
         note: "Belanja mingguan",
         category: "Makanan",
@@ -97,7 +107,7 @@ export function createDefaultMockStore(): MockStore {
       },
       {
         id: 4,
-        date: "2026-03-06",
+        date: dayInCurrentMonth(6),
         amount: 350_000,
         note: "Listrik & air",
         category: "Utilitas",
@@ -107,12 +117,32 @@ export function createDefaultMockStore(): MockStore {
       },
       {
         id: 5,
-        date: "2026-03-07",
+        date: dayInCurrentMonth(7),
         amount: 180_000,
         note: "Grab & BBM",
         category: "Transport",
         type: "pengeluaran",
         account_id: 3,
+        created_at: now,
+      },
+      {
+        id: 6,
+        date: dayInCurrentMonth(8),
+        amount: 250_000,
+        note: "Makan luar",
+        category: "Makanan",
+        type: "pengeluaran",
+        account_id: 3,
+        created_at: now,
+      },
+      {
+        id: 7,
+        date: dayInCurrentMonth(10),
+        amount: 750_000,
+        note: "Bonus proyek",
+        category: "Freelance",
+        type: "pemasukkan",
+        account_id: 1,
         created_at: now,
       },
     ],

@@ -273,10 +273,10 @@ export default function BudgetPage() {
   const formatCurrency = (value: number) => `Rp ${value.toLocaleString("id-ID")}`;
 
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-5.5rem)] w-full max-w-5xl flex-col gap-3 overflow-hidden md:h-[calc(100dvh-6.25rem)] md:min-h-[660px] sm:gap-4">
+    <div className="flex w-full flex-col space-y-5 md:space-y-6">
       <section
         className={cn(
-          "rounded-[24px] border bg-white/88 p-4 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] backdrop-blur dark:bg-slate-950/78 sm:p-5",
+          "rounded-[24px] border bg-white/88 p-4 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] backdrop-blur dark:bg-slate-950/78 md:p-5",
           themeStyles.shell
         )}
       >
@@ -325,7 +325,7 @@ export default function BudgetPage() {
 
       <section
         className={cn(
-          "rounded-[22px] border bg-white/88 p-3.5 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] backdrop-blur dark:bg-slate-950/78 sm:p-4",
+          "rounded-[24px] border bg-white/88 p-4 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] backdrop-blur dark:bg-slate-950/78 md:p-5",
           themeStyles.shell
         )}
       >
@@ -366,7 +366,7 @@ export default function BudgetPage() {
 
       <section
         className={cn(
-          "flex min-h-[360px] flex-1 flex-col overflow-hidden rounded-[24px] border bg-white/88 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] backdrop-blur dark:bg-slate-950/78 md:min-h-0",
+          "flex flex-col rounded-[24px] border bg-white/88 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] backdrop-blur dark:bg-slate-950/78",
           themeStyles.shell
         )}
       >
@@ -380,13 +380,13 @@ export default function BudgetPage() {
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+        <div className="px-4 py-4 sm:px-5">
           {loading ? (
-            <div className="flex h-full items-center justify-center text-sm text-neutral-600 dark:text-slate-400">
+            <div className="flex items-center justify-center py-16 text-sm text-neutral-600 dark:text-slate-400">
               Memuat data budget...
             </div>
           ) : rows.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center text-center">
+            <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className={cn("flex h-12 w-12 items-center justify-center rounded-2xl", themeStyles.icon)}>
                 <CheckCircle2 className="h-5 w-5" />
               </div>

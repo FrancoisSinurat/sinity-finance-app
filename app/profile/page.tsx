@@ -147,15 +147,15 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-5 md:space-y-6">
       <div>
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-2">Profile</h1>
+        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl mb-2">Profile</h1>
         <p className="text-sm sm:text-base text-neutral-600 dark:text-neutral-400">
           Manage your personal information and preferences
         </p>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl shadow-lg border border-neutral-200 dark:border-slate-800 p-4 sm:p-6 md:p-8">
+      <div className="rounded-[24px] border border-neutral-200 bg-white p-4 shadow-lg dark:border-slate-800 dark:bg-slate-900 sm:p-6 md:p-8">
         {loading ? (
           <div className="py-10 text-center text-sm text-neutral-600 dark:text-neutral-400">Memuat profil...</div>
         ) : (

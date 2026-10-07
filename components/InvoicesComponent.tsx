@@ -208,8 +208,14 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
   const isEditMode = editingInvoice != null;
   const activeMonthKey = toMonthKey(monthCursor);
 
-  const monthRows = useMemo(() => data.filter((d) => d.date.startsWith(activeMonthKey)), [data, activeMonthKey]);
-  const monthTotal = useMemo(() => monthRows.reduce((sum, row) => sum + row.amount, 0), [monthRows]);
+  const monthRows = useMemo(
+    () => data.filter((d) => String(d.date ?? "").startsWith(activeMonthKey)),
+    [data, activeMonthKey]
+  );
+  const monthTotal = useMemo(
+    () => monthRows.reduce((sum, row) => sum + (Number(row.amount) || 0), 0),
+    [monthRows]
+  );
 
   const dayTotals = useMemo(() => {
     const map = new Map<string, number>();
@@ -412,8 +418,7 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
   };
 
   return (
-    <div className="h-full w-full max-w-5xl mx-auto bg-white/50 dark:bg-slate-900/60 rounded-xl p-3 sm:p-4 md:p-5 backdrop-blur-sm flex flex-col border dark:border-slate-800/50">
-      <div className="w-full space-y-3.5 flex-1 flex flex-col overflow-visible">
+    <div className="flex w-full flex-col space-y-5 md:space-y-6">
         {apiError && (
           <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm">
             <span>{apiError}</span>
@@ -426,7 +431,7 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
         <>
             <div
               className={cn(
-                "rounded-2xl border p-4 sm:p-5 text-white relative overflow-hidden",
+                "relative overflow-hidden rounded-[24px] border p-4 text-white sm:p-5 md:p-6",
                 colorTheme === "pink" && "border-pink-300/60 bg-gradient-to-br from-pink-500 to-pink-600",
                 colorTheme === "sky" && "border-sky-300/60 bg-gradient-to-br from-sky-500 to-sky-600",
                 colorTheme === "indigo" && "border-indigo-300/60 bg-gradient-to-br from-indigo-500 to-indigo-600",
@@ -434,27 +439,27 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
               )}
             >
               <motion.p initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="text-xs sm:text-sm font-bold uppercase tracking-[0.24em] text-center">
-                {title} {monthLabel(monthCursor)}
+                Total {title} · {monthLabel(monthCursor)}
               </motion.p>
               <motion.p
-                key={activeMonthKey}
+                key={`${activeMonthKey}-${monthTotal}`}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                className={cn(
-                  "text-xl sm:text-2xl font-bold mt-1 text-center",
-                  "text-white"
-                )}
+                className="mt-1 text-center text-2xl font-bold text-white sm:text-3xl"
               >
                 {formatCurrency(monthTotal)}
               </motion.p>
+              <p className="mt-1.5 text-center text-xs font-medium text-white/80 sm:text-sm">
+                {monthRows.length} transaksi
+              </p>
               <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-white/15" />
               <div className="absolute -left-6 -bottom-10 h-20 w-20 rounded-full bg-white/10" />
             </div>
 
             <div
               className={cn(
-                "rounded-3xl border p-3.5 sm:p-4 relative overflow-hidden shadow-sm",
+                "relative overflow-hidden rounded-[24px] border p-4 shadow-sm sm:p-5 md:p-6",
                 themeStyles.calendarShell
               )}
             >
@@ -580,11 +585,10 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
         </>
 
         {loading && (
-          <div className="flex-1 flex items-center justify-center py-12">
+          <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-10 w-10 border-2 border-neutral-300 dark:border-slate-600 border-t-transparent" />
           </div>
         )}
-      </div>
 
       <Dialog open={isDayModalOpen} onOpenChange={setIsDayModalOpen}>
         <DialogContent

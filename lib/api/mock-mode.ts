@@ -12,7 +12,7 @@ import type {
 import { getTokenPayload } from "@/lib/auth";
 
 const MOCK_FLAG_KEY = "__MOCK_MODE__";
-const MOCK_STORE_KEY = "sinity_api_mock_store_v1";
+const MOCK_STORE_KEY = "sinity_api_mock_store_v2";
 export const MOCK_API_DELAY = 180;
 
 function envFlag(name: string): boolean {

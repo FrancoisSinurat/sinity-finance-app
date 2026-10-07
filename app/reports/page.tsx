@@ -130,12 +130,12 @@ export default function ReportsPage() {
   const colors = getChartColors(colorTheme, theme === "dark");
 
   return (
-    <div className="min-h-full space-y-6">
+    <div className="min-h-full space-y-5 md:space-y-6">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
           <h1
             className={cn(
-              "text-2xl md:text-3xl font-bold",
+              "text-2xl font-semibold tracking-tight md:text-3xl",
               colorTheme === "pink" && "text-pink-600 dark:text-pink-400",
               colorTheme === "sky" && "text-sky-600 dark:text-sky-400",
               colorTheme === "indigo" && "text-indigo-600 dark:text-indigo-400",

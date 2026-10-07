@@ -230,10 +230,10 @@ export default function DashboardContent() {
   const activeTargetProgress = topTarget ? computeTargetProgress(topTarget, activeTargetSaved) : 0;
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-4 sm:space-y-5">
+    <div className="w-full space-y-5 md:space-y-6">
       <section
         className={cn(
-          "overflow-hidden rounded-[28px] border bg-white shadow-[0_24px_70px_-38px_rgba(15,23,42,0.18)] transition-shadow duration-300 hover:shadow-[0_28px_90px_-42px_rgba(15,23,42,0.22)] dark:bg-slate-950",
+          "overflow-hidden rounded-[24px] border bg-white shadow-[0_24px_70px_-38px_rgba(15,23,42,0.18)] transition-shadow duration-300 hover:shadow-[0_28px_90px_-42px_rgba(15,23,42,0.22)] dark:bg-slate-950",
           themeStyles.shell
         )}
       >
