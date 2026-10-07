@@ -1,5 +1,12 @@
-import { CateringPage } from "@/components/CateringPage";
+"use client";
 
-export default function Page() {
-  return <CateringPage />;
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+export default function CateringRedirectPage() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/dashboard");
+  }, [router]);
+  return null;
 }

@@ -7,9 +7,7 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useTheme } from "@/lib/theme-provider";
 import { cn } from "@/lib/utils";
-import { ApiError, cateringService, goalsService, useInvoicesData } from "@/lib/api";
-import type { CateringMenu } from "@/lib/api";
-import { isSalesCategory } from "@/lib/catering-config";
+import { ApiError, goalsService, useInvoicesData } from "@/lib/api";
 import type { InvoiceType } from "@/lib/api";
 import type { Invoice } from "@/lib/api";
 import { InvoiceFormDialog } from "@/components/InvoiceFormDialog";
@@ -134,10 +132,6 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [targets, setTargets] = useState<SavingsTarget[]>([]);
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
-  const [cateringMenus, setCateringMenus] = useState<CateringMenu[]>([]);
-  const [cateringMenusLoading, setCateringMenusLoading] = useState(false);
-  const [selectedCateringMenuId, setSelectedCateringMenuId] = useState<string | null>(null);
-  const [cateringQty, setCateringQty] = useState("1");
 
   const perPage = 10;
   const { colorTheme } = useTheme();
@@ -232,8 +226,7 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
       rows = rows.filter(
         (d) =>
           d.note.toLowerCase().includes(q) ||
-          d.category.toLowerCase().includes(q) ||
-          (d.catering_menu?.name?.toLowerCase().includes(q) ?? false)
+          d.category.toLowerCase().includes(q)
       );
     }
     if (sortBy) rows = rows.filter((d) => d.category === sortBy);
@@ -286,51 +279,6 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
     };
   }, [type]);
 
-  useEffect(() => {
-    if (!isDialogOpen || type !== "pemasukkan") return;
-    let mounted = true;
-    setCateringMenusLoading(true);
-    cateringService
-      .listMenus()
-      .then((menus) => {
-        if (mounted) setCateringMenus(menus.filter((m) => m.is_active !== false));
-      })
-      .catch(() => {
-        if (mounted) setCateringMenus([]);
-      })
-      .finally(() => {
-        if (mounted) setCateringMenusLoading(false);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [isDialogOpen, type]);
-
-  useEffect(() => {
-    if (!isSalesCategory(formData.category)) {
-      setSelectedCateringMenuId(null);
-      setCateringQty("1");
-    }
-  }, [formData.category]);
-
-  const handleCateringMenuChange = (menuId: string | null) => {
-    setSelectedCateringMenuId(menuId);
-    if (!menuId || type !== "pemasukkan" || !isSalesCategory(formData.category)) return;
-    const menu = cateringMenus.find((m) => String(m.id) === menuId);
-    if (!menu) return;
-    const q = Math.max(1, parseInt(cateringQty, 10) || 1);
-    setFormData((prev) => ({ ...prev, amount: formatCurrencyInput(String(menu.default_price * q)) }));
-  };
-
-  const handleCateringQtyChange = (qty: string) => {
-    setCateringQty(qty);
-    const qtyNum = Math.max(1, parseInt(qty, 10) || 1);
-    if (!selectedCateringMenuId || type !== "pemasukkan" || !isSalesCategory(formData.category)) return;
-    const menu = cateringMenus.find((m) => String(m.id) === selectedCateringMenuId);
-    if (!menu) return;
-    setFormData((prev) => ({ ...prev, amount: formatCurrencyInput(String(menu.default_price * qtyNum)) }));
-  };
-
   const handleSubmitInvoice = async (e?: React.FormEvent) => {
     if (e) {
       e.preventDefault();
@@ -341,27 +289,10 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
       return;
     }
 
-    if (
-      type === "pemasukkan" &&
-      isSalesCategory(formData.category) &&
-      cateringMenus.length > 0 &&
-      !selectedCateringMenuId
-    ) {
-      setErrorMessage("Pilih menu catering untuk kategori penjualan ini (atau tambah menu di halaman Catering).");
-      return;
-    }
-
     setErrorMessage("");
     setSubmitting(true);
 
     const noteWithTags = buildNoteWithTags(formData.note, formData.tags);
-    const cateringExtra =
-      type === "pemasukkan" && isSalesCategory(formData.category) && selectedCateringMenuId
-        ? {
-            catering_menu_id: Number(selectedCateringMenuId),
-            catering_quantity: Math.max(1, parseInt(cateringQty, 10) || 1),
-          }
-        : {};
 
     const payload = {
       date: formData.date,
@@ -370,7 +301,6 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
       category: formData.category,
       ...(type === "pemasukkan" ? { target_id: selectedTargetId ? Number(selectedTargetId) : 0 } : {}),
       account_id: selectedAccountId ? Number(selectedAccountId) : undefined,
-      ...cateringExtra,
     };
 
     if (isEditMode && editingInvoice) {
@@ -408,8 +338,6 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
     setIsCustomCategory(false);
     setSelectedAccountId(null);
     setSelectedTargetId(null);
-    setSelectedCateringMenuId(null);
-    setCateringQty("1");
     setFormKey((prev) => prev + 1);
     setIsDialogOpen(false);
     setErrorMessage("");
@@ -445,8 +373,6 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
     });
     setSelectedAccountId(inv.account_id ? String(inv.account_id) : null);
     setSelectedTargetId(type === "pemasukkan" ? (inv.target_id ? String(inv.target_id) : null) : null);
-    setSelectedCateringMenuId(inv.catering_menu_id != null ? String(inv.catering_menu_id) : null);
-    setCateringQty(inv.catering_quantity != null && inv.catering_quantity > 0 ? String(inv.catering_quantity) : "1");
     setFormKey((prev) => prev + 1);
     setIsDialogOpen(true);
     setErrorMessage("");
@@ -733,8 +659,6 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
                   });
                   setSelectedAccountId(null);
                   setSelectedTargetId(null);
-                  setSelectedCateringMenuId(null);
-                  setCateringQty("1");
                   setIsCustomCategory(false);
                   setFormKey((prev) => prev + 1);
                   setErrorMessage("");
@@ -773,12 +697,6 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
                       {inv.target_id && type === "pemasukkan" && (
                         <span className="inline-block mt-2 ml-2 text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
                           {targets.find((item) => item.id === inv.target_id)?.name ?? "Target"}
-                        </span>
-                      )}
-                      {inv.catering_menu && type === "pemasukkan" && (
-                        <span className="inline-block mt-2 ml-2 text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100">
-                          {inv.catering_menu.name}
-                          {inv.catering_quantity != null && inv.catering_quantity > 1 ? ` ×${inv.catering_quantity}` : ""}
                         </span>
                       )}
                     </div>
@@ -901,13 +819,6 @@ function InvoicesPage({ title, type }: { title: string; type: InvoiceType }) {
         colorTheme={colorTheme}
         isCustomCategory={isCustomCategory}
         setIsCustomCategory={setIsCustomCategory}
-        showCateringMenuSelector={type === "pemasukkan"}
-        cateringMenus={cateringMenus}
-        cateringMenusLoading={cateringMenusLoading}
-        selectedCateringMenuId={selectedCateringMenuId}
-        onCateringMenuChange={handleCateringMenuChange}
-        cateringQty={cateringQty}
-        onCateringQtyChange={handleCateringQtyChange}
         onSave={handleSubmitInvoice}
         onCancel={() => setIsDialogOpen(false)}
       />

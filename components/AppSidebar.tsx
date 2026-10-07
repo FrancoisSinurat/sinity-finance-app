@@ -10,7 +10,6 @@ import {
   Wallet,
   Landmark,
   BarChart3,
-  UtensilsCrossed,
   Target,
   PanelRightOpen,
   PanelRightClose,
@@ -45,7 +44,6 @@ const menuItems = [
   { name: "Target", icon: Target, href: "/goals" },
   { name: "Rekening", icon: Landmark, href: "/accounts" },
   { name: "Reports", icon: BarChart3, href: "/reports" },
-  { name: "Catering", icon: UtensilsCrossed, href: "/catering" },
   { name: "Settings", icon: Settings, href: "/settings" },
 ];
 

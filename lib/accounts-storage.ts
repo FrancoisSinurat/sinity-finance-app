@@ -143,69 +143,83 @@ export async function getAccountsAsync(): Promise<Account[]> {
 }
 
 export async function createAccountAsync(input: Omit<Account, "id" | "createdAt" | "balance" | "income" | "expense">): Promise<Account> {
-  const apiAccount = await accountsService.create({
-    name: input.name,
-    account_number: input.accountNumber,
-    type: input.type,
-    initial_balance: input.initialBalance,
-    color: input.color,
-  });
-  const next: Account = {
-    id: String(apiAccount.id),
-    name: apiAccount.name,
-    accountNumber: apiAccount.account_number || "",
-    type: apiAccount.type,
-    initialBalance: apiAccount.initial_balance,
-    balance: apiAccount.balance || apiAccount.initial_balance,
-    income: apiAccount.income || 0,
-    expense: apiAccount.expense || 0,
-    color: apiAccount.color as Account["color"],
-    createdAt: apiAccount.created_at || getJakartaTimestamp(),
-  };
-  const accounts = getAccounts();
-  saveAccounts([next, ...accounts]);
-  return next;
+  try {
+    const apiAccount = await accountsService.create({
+      name: input.name,
+      account_number: input.accountNumber,
+      type: input.type,
+      initial_balance: input.initialBalance,
+      color: input.color,
+    });
+    const next: Account = {
+      id: String(apiAccount.id),
+      name: apiAccount.name,
+      accountNumber: apiAccount.account_number || "",
+      type: apiAccount.type,
+      initialBalance: apiAccount.initial_balance,
+      balance: apiAccount.balance || apiAccount.initial_balance,
+      income: apiAccount.income || 0,
+      expense: apiAccount.expense || 0,
+      color: apiAccount.color as Account["color"],
+      createdAt: apiAccount.created_at || getJakartaTimestamp(),
+    };
+    const accounts = getAccounts();
+    saveAccounts([next, ...accounts]);
+    return next;
+  } catch (error) {
+    console.error("Failed to create account via API, using localStorage:", error);
+    return createAccount(input);
+  }
 }
 
 export async function updateAccountAsync(id: string, patch: Partial<Omit<Account, "id" | "createdAt" | "balance" | "income" | "expense">>): Promise<Account | null> {
   const apiId = parseInt(id);
   if (isNaN(apiId)) return updateAccount(id, patch);
 
-  const apiAccount = await accountsService.update(apiId, {
-    name: patch.name,
-    account_number: patch.accountNumber,
-    type: patch.type,
-    initial_balance: patch.initialBalance,
-    color: patch.color,
-  });
+  try {
+    const apiAccount = await accountsService.update(apiId, {
+      name: patch.name,
+      account_number: patch.accountNumber,
+      type: patch.type,
+      initial_balance: patch.initialBalance,
+      color: patch.color,
+    });
 
-  const next: Account = {
-    id: String(apiAccount.id),
-    name: apiAccount.name,
-    accountNumber: apiAccount.account_number || "",
-    type: apiAccount.type,
-    initialBalance: apiAccount.initial_balance,
-    balance: apiAccount.balance || apiAccount.initial_balance,
-    income: apiAccount.income || 0,
-    expense: apiAccount.expense || 0,
-    color: apiAccount.color as Account["color"],
-    createdAt: apiAccount.created_at || getJakartaTimestamp(),
-  };
+    const next: Account = {
+      id: String(apiAccount.id),
+      name: apiAccount.name,
+      accountNumber: apiAccount.account_number || "",
+      type: apiAccount.type,
+      initialBalance: apiAccount.initial_balance,
+      balance: apiAccount.balance || apiAccount.initial_balance,
+      income: apiAccount.income || 0,
+      expense: apiAccount.expense || 0,
+      color: apiAccount.color as Account["color"],
+      createdAt: apiAccount.created_at || getJakartaTimestamp(),
+    };
 
-  const accounts = getAccounts();
-  const idx = accounts.findIndex((a) => a.id === id);
-  if (idx >= 0) {
-    accounts[idx] = next;
-    saveAccounts(accounts);
+    const accounts = getAccounts();
+    const idx = accounts.findIndex((a) => a.id === id);
+    if (idx >= 0) {
+      accounts[idx] = next;
+      saveAccounts(accounts);
+    }
+    return next;
+  } catch (error) {
+    console.error("Failed to update account via API, using localStorage:", error);
+    return updateAccount(id, patch);
   }
-  return next;
 }
 
 export async function deleteAccountAsync(id: string): Promise<void> {
   const apiId = parseInt(id);
-  if (!isNaN(apiId)) {
-    await accountsService.delete(apiId);
+  try {
+    if (!isNaN(apiId)) {
+      await accountsService.delete(apiId);
+    }
+  } catch (error) {
+    console.error("Failed to delete account via API, using localStorage:", error);
   }
-  deleteAccount(id); // Clean up local cache
+  deleteAccount(id);
 }
 

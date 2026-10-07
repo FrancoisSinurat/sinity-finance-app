@@ -34,7 +34,7 @@ const getBooleanEnv = (value: string | undefined, defaultValue: boolean): boolea
 };
 
 export const apiConfig = {
-  baseUrl: getBaseUrl() ,
+  baseUrl: getBaseUrl(),
   auth: {
     mockOnBackendError: getBooleanEnv(process.env.NEXT_PUBLIC_AUTH_MOCK_ON_BACKEND_ERROR, true),
     googleClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "",
@@ -42,6 +42,11 @@ export const apiConfig = {
     registerUrl: joinUrl(getAuthBaseUrl(), process.env.NEXT_PUBLIC_AUTH_REGISTER_PATH ?? "/api/v1/auth/register"),
     googleLoginUrl: joinUrl(getAuthBaseUrl(), process.env.NEXT_PUBLIC_AUTH_GOOGLE_PATH ?? "/api/v1/auth/google"),
   },
+  /** Fallback semua API ke localStorage mock saat backend unreachable (default: on). */
+  mockOnBackendError: getBooleanEnv(
+    process.env.NEXT_PUBLIC_MOCK_ON_BACKEND_ERROR ?? process.env.NEXT_PUBLIC_AUTH_MOCK_ON_BACKEND_ERROR,
+    true
+  ),
   chatUrl: process.env.NEXT_PUBLIC_CHAT_API_URL ?? "",
   timeout: 15_000,
   headers: {

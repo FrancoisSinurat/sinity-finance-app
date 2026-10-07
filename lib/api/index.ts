@@ -33,6 +33,12 @@ export { budgetService } from "./services/budget.service";
 export { goalsService } from "./services/goals.service";
 export { accountsService } from "./services/accounts.service";
 export { useInvoicesData } from "./hooks/useInvoicesData";
+export {
+  isMockModeEnabled,
+  setMockMode,
+  getMockModeIndicator,
+  enableMockMode,
+} from "./mock-mode";
 
 export { cateringService, isCateringApiMissingError } from "./services/catering.service";
 export type {
